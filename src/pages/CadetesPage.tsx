@@ -11,6 +11,13 @@ function toneVerif(v: string) {
   return 'danger' as const;
 }
 
+function estadoBadgeTone(estado?: string): 'ok' | 'warn' | 'danger' | 'neutral' {
+  if (estado === 'activo') return 'ok';
+  if (estado === 'inactivo') return 'danger';
+  if (estado === 'suspendido') return 'warn';
+  return 'neutral';
+}
+
 const DOC_FIELDS = [
   { id: 'dni' as const, label: 'DNI (PDF)' },
   { id: 'carnet' as const, label: 'Carnet de manejo (PDF)' },
@@ -18,6 +25,8 @@ const DOC_FIELDS = [
   { id: 'afip' as const, label: 'Constancia AFIP (PDF)' },
   { id: 'rentas' as const, label: 'Constancia de Rentas (PDF)' },
 ];
+
+const PLANES_CADETE = ['trial', 'silver', 'gold', 'premium'] as const;
 
 const emptyForm = {
   nombre: '',
@@ -34,6 +43,19 @@ const emptyForm = {
 };
 
 type DocId = (typeof DOC_FIELDS)[number]['id'];
+
+function makeEditForm(c: CadeteAdmin) {
+  return {
+    nombre: c.nombre ?? '',
+    email: c.email ?? '',
+    telefono: c.telefono ?? '',
+    dni: c.dni,
+    licencia: c.licencia,
+    patente: c.patente,
+    marca_moto: c.marca_moto ?? '',
+    plan_suscripcion: c.plan_suscripcion,
+  };
+}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -65,6 +87,11 @@ export function CadetesPage() {
   const [docs, setDocs] = useState<Partial<Record<DocId, File | null>>>({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<CadeteAdmin | null>(null);
+  const [editForm, setEditForm] = useState(makeEditForm({} as CadeteAdmin));
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setError(null);
@@ -87,6 +114,66 @@ export function CadetesPage() {
       setError(e instanceof Error ? e.message : 'Error');
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function bajaCadete(c: CadeteAdmin) {
+    if (!window.confirm(`¿Dar de baja a "${c.nombre ?? c.dni}"?`)) return;
+    setBusy(c.usuario_id);
+    setError(null);
+    try {
+      await adminApi.bajaCadete(c.usuario_id);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo dar de baja');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reactivarCadete(c: CadeteAdmin) {
+    setBusy(c.usuario_id);
+    setError(null);
+    try {
+      await adminApi.reactivarCadete(c.usuario_id);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo reactivar');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function openEdit(c: CadeteAdmin) {
+    setEditTarget(c);
+    setEditForm(makeEditForm(c));
+    setEditError(null);
+    setEditOpen(true);
+  }
+
+  async function onEditSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await adminApi.actualizarCadete(editTarget.usuario_id, {
+        nombre: editForm.nombre,
+        email: editForm.email,
+        telefono: editForm.telefono,
+        dni: editForm.dni,
+        licencia: editForm.licencia,
+        patente: editForm.patente,
+        marca_moto: editForm.marca_moto || null,
+        plan_suscripcion: editForm.plan_suscripcion,
+      });
+      setEditOpen(false);
+      setEditTarget(null);
+      load();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'No se pudo guardar');
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -171,7 +258,8 @@ export function CadetesPage() {
               <th>Patente</th>
               <th>Docs</th>
               <th>Verificación</th>
-              <th>Estado</th>
+              <th>Cuenta</th>
+              <th>Disponibilidad</th>
               <th>Plan</th>
               <th>CBU</th>
               <th>Viajes</th>
@@ -182,6 +270,8 @@ export function CadetesPage() {
           <tbody>
             {items.map((c) => {
               const links = docsLinks(c);
+              const isBusy = busy === c.usuario_id;
+              const inactivo = c.estado === 'inactivo';
               return (
                 <tr key={c.usuario_id}>
                   <td className="mono">
@@ -224,6 +314,11 @@ export function CadetesPage() {
                     </Badge>
                   </td>
                   <td>
+                    <Badge tone={estadoBadgeTone(c.estado)}>
+                      {c.estado ?? 'activo'}
+                    </Badge>
+                  </td>
+                  <td>
                     <Badge tone={c.disponibilidad === 'online' ? 'ok' : 'neutral'}>
                       {c.disponibilidad}
                     </Badge>
@@ -249,11 +344,38 @@ export function CadetesPage() {
                     <Money value={c.total_ganado} />
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={isBusy}
+                        onClick={() => openEdit(c)}
+                      >
+                        Editar
+                      </button>
+                      {!inactivo ? (
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          disabled={isBusy}
+                          onClick={() => void bajaCadete(c)}
+                        >
+                          Dar de baja
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={isBusy}
+                          onClick={() => void reactivarCadete(c)}
+                        >
+                          Reactivar
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn btn-primary btn-sm"
-                        disabled={busy === c.usuario_id}
+                        disabled={isBusy}
                         onClick={() => void action(c.usuario_id, 'aprobado')}
                       >
                         Aprobar
@@ -261,7 +383,7 @@ export function CadetesPage() {
                       <button
                         type="button"
                         className="btn btn-danger btn-sm"
-                        disabled={busy === c.usuario_id}
+                        disabled={isBusy}
                         onClick={() => void action(c.usuario_id, 'suspendido')}
                       >
                         Suspender
@@ -273,7 +395,7 @@ export function CadetesPage() {
             })}
             {items.length === 0 ? (
               <tr>
-                <td colSpan={13} className="muted">
+                <td colSpan={14} className="muted">
                   Sin cadetes — usá “Nuevo cadete”
                 </td>
               </tr>
@@ -281,6 +403,111 @@ export function CadetesPage() {
           </tbody>
         </table>
       </div>
+
+      {editOpen && editTarget ? (
+        <div className="modal-backdrop" onClick={() => !editSaving && setEditOpen(false)}>
+          <form
+            className="modal"
+            style={{ maxWidth: 520 }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => void onEditSubmit(e)}
+          >
+            <h2>Editar cadete · {editTarget.nombre ?? editTarget.dni}</h2>
+            {editError ? <ErrorBox message={editError} /> : null}
+            <div className="form-grid">
+              <div className="field full">
+                <label>Nombre</label>
+                <input
+                  required
+                  value={editForm.nombre}
+                  onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
+                />
+              </div>
+              <div className="field full">
+                <label>Email</label>
+                <input
+                  required
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Teléfono</label>
+                <input
+                  required
+                  value={editForm.telefono}
+                  onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>DNI (número)</label>
+                <input
+                  required
+                  minLength={7}
+                  value={editForm.dni}
+                  onChange={(e) => setEditForm({ ...editForm, dni: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Nº carnet / licencia</label>
+                <input
+                  required
+                  minLength={3}
+                  value={editForm.licencia}
+                  onChange={(e) => setEditForm({ ...editForm, licencia: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Patente</label>
+                <input
+                  required
+                  minLength={5}
+                  value={editForm.patente}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, patente: e.target.value.toUpperCase() })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Marca moto</label>
+                <input
+                  value={editForm.marca_moto}
+                  onChange={(e) => setEditForm({ ...editForm, marca_moto: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Plan</label>
+                <select
+                  value={editForm.plan_suscripcion}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, plan_suscripcion: e.target.value })
+                  }
+                >
+                  {PLANES_CADETE.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={editSaving}
+                onClick={() => setEditOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={editSaving}>
+                {editSaving ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       {open ? (
         <div className="modal-backdrop" onClick={() => !saving && setOpen(false)}>

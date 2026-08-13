@@ -44,6 +44,10 @@ export function TarifasPage() {
 
   useEffect(() => {
     void adminApi
+      .getTarifas()
+      .then((data) => setForm({ ...DEFAULTS, ...data }))
+      .catch((e: Error) => setError(e.message));
+    void adminApi
       .comisiones()
       .then((rows) => setMatrix(toMatrix(rows)))
       .catch((e: Error) => setError(e.message));

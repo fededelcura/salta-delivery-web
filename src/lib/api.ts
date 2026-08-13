@@ -126,6 +126,40 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ estado }),
     }),
+  actualizarCadete: (
+    id: string,
+    body: {
+      nombre?: string;
+      email?: string;
+      telefono?: string;
+      dni?: string;
+      licencia?: string;
+      patente?: string;
+      marca_moto?: string | null;
+      direccion_parts?: {
+        calle: string;
+        numero: string;
+        piso_dpto?: string | null;
+        barrio: string;
+        ciudad?: string;
+        provincia?: string;
+      };
+      cbu?: string | null;
+      alias_bancario?: string | null;
+      banco?: string | null;
+      titular_cuenta?: string | null;
+      plan_suscripcion?: string;
+      estado?: string;
+    },
+  ) =>
+    api<import('./types').CadeteAdmin>(`/admin/cadetes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  bajaCadete: (id: string) =>
+    api<import('./types').CadeteAdmin>(`/admin/cadetes/${id}/baja`, { method: 'POST' }),
+  reactivarCadete: (id: string) =>
+    api<import('./types').CadeteAdmin>(`/admin/cadetes/${id}/reactivar`, { method: 'POST' }),
   clientes: () => api<import('./types').ClienteAdmin[]>('/admin/clientes'),
   crearCliente: (body: {
     email: string;
@@ -149,6 +183,66 @@ export const adminApi = {
   }) =>
     api<import('./types').ClienteAdmin>('/admin/clientes', {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  actualizarCliente: (
+    id: string,
+    body: {
+      nombre?: string;
+      email?: string;
+      telefono?: string;
+      dni?: string;
+      plan_suscripcion?: string;
+      tipo_cuenta?: 'particular' | 'restaurante' | 'comercio';
+      tiempo_preparacion_min?: number;
+      horario_comercial?: { abre?: string; cierra?: string; dias?: number[] } | null;
+      direccion_parts?: {
+        calle: string;
+        numero: string;
+        piso_dpto?: string | null;
+        barrio: string;
+        ciudad?: string;
+        provincia?: string;
+      };
+      estado?: string;
+    },
+  ) =>
+    api<import('./types').ClienteAdmin>(`/admin/clientes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  bajaCliente: (id: string) =>
+    api<import('./types').ClienteAdmin>(`/admin/clientes/${id}/baja`, { method: 'POST' }),
+  reactivarCliente: (id: string) =>
+    api<import('./types').ClienteAdmin>(`/admin/clientes/${id}/reactivar`, {
+      method: 'POST',
+    }),
+  zonas: () => api<import('./types').ZonaHex[]>('/admin/zonas'),
+  crearZona: (body: {
+    h3_index: string;
+    nombre?: string | null;
+    tipo?: string;
+    lat_centro: number;
+    lng_centro: number;
+    tarifa_multiplier?: number;
+    activa?: boolean;
+  }) =>
+    api<import('./types').ZonaHex>('/admin/zonas', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  actualizarZona: (id: string, body: Partial<import('./types').ZonaHex>) =>
+    api<import('./types').ZonaHex>(`/admin/zonas/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  bajaZona: (id: string) =>
+    api<import('./types').ZonaHex>(`/admin/zonas/${id}/baja`, { method: 'POST' }),
+  getTarifas: () => api<import('./types').TarifasBase>('/admin/configurar-tarifas'),
+  getPlanes: () => api<import('./types').PlanesCatalogo>('/admin/planes'),
+  setPlanes: (body: import('./types').PlanesCatalogo) =>
+    api<import('./types').PlanesCatalogo>('/admin/planes', {
+      method: 'PUT',
       body: JSON.stringify(body),
     }),
   viajes: (estado?: string) =>
