@@ -1,4 +1,4 @@
-import type { ApiResponse } from './types';
+import type { ApiResponse } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
@@ -64,15 +64,15 @@ export async function api<T>(
 
 export const authApi = {
   login: (email: string, password: string) =>
-    api<import('./types').AuthSession>('/auth/login', {
+    api<import('../types').AuthSession>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
 };
 
 export const adminApi = {
-  dashboard: () => api<import('./types').DashboardKpis>('/admin/dashboard'),
-  cadetes: () => api<import('./types').CadeteAdmin[]>('/admin/cadetes'),
+  dashboard: () => api<import('../types').DashboardKpis>('/admin/dashboard'),
+  cadetes: () => api<import('../types').CadeteAdmin[]>('/admin/cadetes'),
   crearCadete: (body: {
     email: string;
     telefono: string;
@@ -100,7 +100,7 @@ export const adminApi = {
       rentas?: string;
     };
   }) =>
-    api<import('./types').CadeteAdmin>('/admin/cadetes', {
+    api<import('../types').CadeteAdmin>('/admin/cadetes', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -117,12 +117,12 @@ export const adminApi = {
       };
     },
   ) =>
-    api<import('./types').CadeteAdmin>(`/admin/cadetes/${id}/documentos`, {
+    api<import('../types').CadeteAdmin>(`/admin/cadetes/${id}/documentos`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   patchCadete: (id: string, estado: string) =>
-    api<import('./types').CadeteAdmin>(`/admin/cadetes/${id}`, {
+    api<import('../types').CadeteAdmin>(`/admin/cadetes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ estado }),
     }),
@@ -152,15 +152,15 @@ export const adminApi = {
       estado?: string;
     },
   ) =>
-    api<import('./types').CadeteAdmin>(`/admin/cadetes/${id}`, {
+    api<import('../types').CadeteAdmin>(`/admin/cadetes/${id}`, {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
   bajaCadete: (id: string) =>
-    api<import('./types').CadeteAdmin>(`/admin/cadetes/${id}/baja`, { method: 'POST' }),
+    api<import('../types').CadeteAdmin>(`/admin/cadetes/${id}/baja`, { method: 'POST' }),
   reactivarCadete: (id: string) =>
-    api<import('./types').CadeteAdmin>(`/admin/cadetes/${id}/reactivar`, { method: 'POST' }),
-  clientes: () => api<import('./types').ClienteAdmin[]>('/admin/clientes'),
+    api<import('../types').CadeteAdmin>(`/admin/cadetes/${id}/reactivar`, { method: 'POST' }),
+  clientes: () => api<import('../types').ClienteAdmin[]>('/admin/clientes'),
   crearCliente: (body: {
     email: string;
     telefono: string;
@@ -181,7 +181,7 @@ export const adminApi = {
     horario_comercial?: { abre?: string; cierra?: string; dias?: number[] } | null;
     documento_dni: string;
   }) =>
-    api<import('./types').ClienteAdmin>('/admin/clientes', {
+    api<import('../types').ClienteAdmin>('/admin/clientes', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -207,17 +207,17 @@ export const adminApi = {
       estado?: string;
     },
   ) =>
-    api<import('./types').ClienteAdmin>(`/admin/clientes/${id}`, {
+    api<import('../types').ClienteAdmin>(`/admin/clientes/${id}`, {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
   bajaCliente: (id: string) =>
-    api<import('./types').ClienteAdmin>(`/admin/clientes/${id}/baja`, { method: 'POST' }),
+    api<import('../types').ClienteAdmin>(`/admin/clientes/${id}/baja`, { method: 'POST' }),
   reactivarCliente: (id: string) =>
-    api<import('./types').ClienteAdmin>(`/admin/clientes/${id}/reactivar`, {
+    api<import('../types').ClienteAdmin>(`/admin/clientes/${id}/reactivar`, {
       method: 'POST',
     }),
-  zonas: () => api<import('./types').ZonaHex[]>('/admin/zonas'),
+  zonas: () => api<import('../types').ZonaHex[]>('/admin/zonas'),
   crearZona: (body: {
     h3_index: string;
     nombre?: string | null;
@@ -227,26 +227,26 @@ export const adminApi = {
     tarifa_multiplier?: number;
     activa?: boolean;
   }) =>
-    api<import('./types').ZonaHex>('/admin/zonas', {
+    api<import('../types').ZonaHex>('/admin/zonas', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  actualizarZona: (id: string, body: Partial<import('./types').ZonaHex>) =>
-    api<import('./types').ZonaHex>(`/admin/zonas/${id}`, {
+  actualizarZona: (id: string, body: Partial<import('../types').ZonaHex>) =>
+    api<import('../types').ZonaHex>(`/admin/zonas/${id}`, {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
   bajaZona: (id: string) =>
-    api<import('./types').ZonaHex>(`/admin/zonas/${id}/baja`, { method: 'POST' }),
-  getTarifas: () => api<import('./types').TarifasBase>('/admin/configurar-tarifas'),
-  getPlanes: () => api<import('./types').PlanesCatalogo>('/admin/planes'),
-  setPlanes: (body: import('./types').PlanesCatalogo) =>
-    api<import('./types').PlanesCatalogo>('/admin/planes', {
+    api<import('../types').ZonaHex>(`/admin/zonas/${id}/baja`, { method: 'POST' }),
+  getTarifas: () => api<import('../types').TarifasBase>('/admin/configurar-tarifas'),
+  getPlanes: () => api<import('../types').PlanesCatalogo>('/admin/planes'),
+  setPlanes: (body: import('../types').PlanesCatalogo) =>
+    api<import('../types').PlanesCatalogo>('/admin/planes', {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
   viajes: (estado?: string) =>
-    api<import('./types').ViajeAdmin[]>(
+    api<import('../types').ViajeAdmin[]>(
       `/admin/viajes${estado ? `?estado=${encodeURIComponent(estado)}` : ''}`,
     ),
   reportes: (params?: {
@@ -267,7 +267,7 @@ export const adminApi = {
     if (params?.cadete_id) qs.set('cadete_id', params.cadete_id);
     if (params?.cliente_id) qs.set('cliente_id', params.cliente_id);
     const s = qs.toString();
-    return api<import('./types').ReportesData>(`/admin/reportes${s ? `?${s}` : ''}`);
+    return api<import('../types').ReportesData>(`/admin/reportes${s ? `?${s}` : ''}`);
   },
   guardarReporte: (body: {
     tipo:
@@ -283,15 +283,15 @@ export const adminApi = {
     resumen: Record<string, unknown>;
     detalle: Record<string, unknown>;
   }) =>
-    api<import('./types').ReporteGuardado>('/admin/reportes/guardar', {
+    api<import('../types').ReporteGuardado>('/admin/reportes/guardar', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   reportesGuardados: () =>
-    api<import('./types').ReporteGuardado[]>('/admin/reportes/guardados'),
+    api<import('../types').ReporteGuardado[]>('/admin/reportes/guardados'),
   reporteGuardado: (id: string) =>
-    api<import('./types').ReporteGuardado>(`/admin/reportes/guardados/${id}`),
-  incidencias: () => api<import('./types').Incidencia[]>('/admin/incidencias'),
+    api<import('../types').ReporteGuardado>(`/admin/reportes/guardados/${id}`),
+  incidencias: () => api<import('../types').Incidencia[]>('/admin/incidencias'),
   patchIncidencia: (
     id: string,
     body: { estado?: string; asignado_a?: string; resolucion?: string },
@@ -300,21 +300,21 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
-  configurarTarifas: (body: Partial<import('./types').TarifasBase>) =>
-    api<import('./types').TarifasBase>('/admin/configurar-tarifas', {
+  configurarTarifas: (body: Partial<import('../types').TarifasBase>) =>
+    api<import('../types').TarifasBase>('/admin/configurar-tarifas', {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
-  comisiones: () => api<import('./types').ConfigComision[]>('/admin/comisiones'),
+  comisiones: () => api<import('../types').ConfigComision[]>('/admin/comisiones'),
   guardarComisiones: (
     items: Array<{ plan_cadete: string; tipo_servicio: string; comision_pct: number }>,
   ) =>
-    api<import('./types').ConfigComision[]>('/admin/comisiones', {
+    api<import('../types').ConfigComision[]>('/admin/comisiones', {
       method: 'PUT',
       body: JSON.stringify({ items }),
     }),
   comprobantesViaje: (viajeId: string) =>
-    api<import('./types').Comprobante[]>(`/admin/viajes/${viajeId}/comprobantes`),
+    api<import('../types').Comprobante[]>(`/admin/viajes/${viajeId}/comprobantes`),
   comprobantes: (params?: {
     rol?: string;
     q?: string;
@@ -333,30 +333,30 @@ export const adminApi = {
     if (params?.page) qs.set('page', String(params.page));
     if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
     const s = qs.toString();
-    return api<import('./types').ComprobantesListResponse>(
+    return api<import('../types').ComprobantesListResponse>(
       `/admin/comprobantes${s ? `?${s}` : ''}`,
     );
   },
   detalleCliente: (id: string) =>
-    api<import('./types').ClienteDetalleAdmin>(`/admin/clientes/${id}/detalle`),
+    api<import('../types').ClienteDetalleAdmin>(`/admin/clientes/${id}/detalle`),
   detalleCadete: (id: string) =>
-    api<import('./types').CadeteDetalleAdmin>(`/admin/cadetes/${id}/detalle`),
+    api<import('../types').CadeteDetalleAdmin>(`/admin/cadetes/${id}/detalle`),
   actividadCadetes: (params?: { desde?: string; hasta?: string; cadete_id?: string }) => {
     const qs = new URLSearchParams();
     if (params?.desde) qs.set('desde', params.desde);
     if (params?.hasta) qs.set('hasta', params.hasta);
     if (params?.cadete_id) qs.set('cadete_id', params.cadete_id);
     const s = qs.toString();
-    return api<import('./types').CadeteActividadStats>(
+    return api<import('../types').CadeteActividadStats>(
       `/admin/cadetes/actividad${s ? `?${s}` : ''}`,
     );
   },
   liquidaciones: (estado?: string) =>
-    api<import('./types').LiquidacionAdmin[]>(
+    api<import('../types').LiquidacionAdmin[]>(
       `/admin/liquidaciones${estado ? `?estado=${encodeURIComponent(estado)}` : ''}`,
     ),
   transferirLiquidacion: (id: string, nota?: string) =>
-    api<import('./types').LiquidacionAdmin>(`/admin/liquidaciones/${id}/transferir`, {
+    api<import('../types').LiquidacionAdmin>(`/admin/liquidaciones/${id}/transferir`, {
       method: 'POST',
       body: JSON.stringify({ nota }),
     }),
@@ -369,5 +369,81 @@ export const adminApi = {
 };
 
 export const suscripcionesApi = {
-  planes: () => api<import('./types').PlanesCatalogo>('/suscripciones/planes'),
+  planes: () => api<import('../types').PlanesCatalogo>('/suscripciones/planes'),
+};
+
+/** Portal cliente (mismo contrato que mobile-cliente) */
+export const clientePortalApi = {
+  perfil: () => api<import('../types').ClientePortalPerfil>('/clientes/perfil'),
+  viajes: () => api<import('../types').ViajePortal[]>('/clientes/viajes'),
+  solicitar: (payload: {
+    tipo_servicio: string;
+    origen_direccion: string;
+    origen: { lat: number; lng: number };
+    destino_direccion: string;
+    destino: { lat: number; lng: number };
+    metodo_pago: string;
+    tiempo_preparacion_min?: number;
+  }) =>
+    api<import('../types').ViajePortal>('/clientes/solicitar-viaje', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  cancelar: (id: string, motivo?: string) =>
+    api<import('../types').ViajePortal>(`/clientes/cancelar-viaje/${id}`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
+    }),
+  calcularTarifa: (origen: { lat: number; lng: number }, destino: { lat: number; lng: number }) =>
+    api<import('../types').CalcularTarifaPortal>('/viajes/calcular-tarifa', {
+      method: 'POST',
+      body: JSON.stringify({ origen, destino }),
+    }),
+};
+
+/** Portal cadete (mismo contrato que mobile-cadete) */
+export const cadetePortalApi = {
+  setEstado: (disponibilidad: 'online' | 'offline' | 'ocupado') =>
+    api<import('../types').CadetePortal>('/cadetes/estado', {
+      method: 'PATCH',
+      body: JSON.stringify({ disponibilidad }),
+    }),
+  actualizarUbicacion: (lat: number, lng: number) =>
+    api<import('../types').CadetePortal>('/cadetes/actualizar-ubicacion', {
+      method: 'POST',
+      body: JSON.stringify({ lat, lng }),
+    }),
+  viajesDisponibles: () => api<import('../types').ViajePortal[]>('/cadetes/viajes-disponibles'),
+  aceptar: (id: string) =>
+    api<import('../types').ViajePortal>(`/cadetes/aceptar-viaje/${id}`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  rechazar: (id: string) =>
+    api<{ viaje_id: string; rechazado: boolean }>(`/cadetes/rechazar-viaje/${id}`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  estadoViaje: (
+    id: string,
+    estado: 'cadete_en_camino' | 'cadete_llego' | 'en_curso' | 'finalizado',
+  ) =>
+    api<import('../types').ViajePortal>(`/cadetes/estado-viaje/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ estado }),
+    }),
+  ganancias: () => api<import('../types').GananciasPortal>('/cadetes/ganancias'),
+  datosCobro: () =>
+    api<{
+      cbu: string | null;
+      alias_bancario: string | null;
+      banco: string | null;
+      titular_cuenta: string | null;
+      comision_actual: number;
+      total_ganado: number;
+    }>('/cadetes/datos-cobro'),
+  misViajes: (cadeteId: string) =>
+    api<import('../types').ViajePortal[]>(
+      `/viajes?cadete_id=${encodeURIComponent(cadeteId)}&pageSize=50`,
+    ),
 };

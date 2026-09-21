@@ -629,6 +629,20 @@ table.data tr.row-selected td {
   gap: 0.4rem;
 }
 
+@media (max-width: 860px) {
+  .filter-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.35rem;
+    max-width: 100%;
+  }
+
+  .filter-chip {
+    flex: 0 0 auto;
+  }
+}
+
 .filter-chip {
   border: 1px solid var(--line);
   background: var(--surface);
@@ -1010,5 +1024,104 @@ table.data tr.row-selected td {
   .kpi-grid,
   .kpi-grid-secondary {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Portal cliente / cadete — bottom nav en móvil */
+.bottom-nav {
+  display: none;
+}
+
+.btn-logout-mobile {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .app-shell-portal {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .app-shell-portal .sidebar-portal {
+    display: none;
+  }
+
+  .app-shell-portal .workspace-portal {
+    min-height: 0;
+  }
+
+  .app-shell-portal .main-portal {
+    padding: 1rem 1rem 5.5rem;
+  }
+
+  .app-shell-portal .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
+    gap: 0.75rem;
+  }
+
+  .btn-logout-mobile {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    gap: 0;
+    padding: 0.35rem 0.25rem calc(0.35rem + env(safe-area-inset-bottom, 0));
+    background: #0f2744;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -8px 24px rgba(15, 39, 68, 0.25);
+  }
+
+  .bottom-nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0.35rem 0.25rem;
+    color: rgba(244, 247, 251, 0.65);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 10px;
+  }
+
+  .bottom-nav-link.active {
+    color: #fff;
+    background: rgba(232, 106, 60, 0.28);
+  }
+
+  .filter-chip,
+  .btn,
+  .btn-primary,
+  .btn-ghost {
+    min-height: 44px;
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    min-height: 44px;
+    font-size: 16px; /* evita zoom iOS */
+  }
+
+  .toolbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.65rem;
+    padding-bottom: 0.25rem;
   }
 }

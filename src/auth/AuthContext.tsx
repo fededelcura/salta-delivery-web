@@ -39,8 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const data = await authApi.login(email, password);
-    if (data.usuario.rol !== 'administrador') {
-      throw new Error('Solo administradores pueden entrar al panel');
+    const rol = data.usuario.rol;
+    if (rol !== 'administrador' && rol !== 'cliente' && rol !== 'cadete') {
+      throw new Error('Este rol no tiene acceso al portal web');
+    }
+    if (data.usuario.estado && data.usuario.estado !== 'activo') {
+      throw new Error('Tu cuenta no está activa');
     }
     setToken(data.tokens.accessToken);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));

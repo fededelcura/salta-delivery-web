@@ -1,9 +1,18 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { adminApi } from '../lib/api';
 import { emptyDireccionParts, formatDireccionParts } from '../lib/direccion';
+import { fleetMarkerColor, fleetMarkerLabel } from '../lib/gps';
+import {
+  connectAdminSocket,
+  type CadeteUbicacionEvent,
+} from '../lib/socket';
 import type { CadeteAdmin } from '../types';
 import { Badge, ErrorBox, Loading, Money, PageHeader } from '../components/ui';
 import { MapView } from '../components/MapView';
+
+function getToken(): string | null {
+  return localStorage.getItem('sd_token');
+}
 
 function toneVerif(v: string) {
   if (v === 'aprobado') return 'ok' as const;
@@ -92,6 +101,8 @@ export function CadetesPage() {
   const [editForm, setEditForm] = useState(makeEditForm({} as CadeteAdmin));
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [socketStatus, setSocketStatus] = useState<'connecting' | 'live' | 'off'>('connecting');
+  const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(() => {
     setError(null);
@@ -104,6 +115,50 @@ export function CadetesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      setSocketStatus('off');
+      return;
+    }
+
+    const socket = connectAdminSocket(token);
+    setSocketStatus('connecting');
+
+    socket.on('connect', () => setSocketStatus('live'));
+    socket.on('disconnect', () => setSocketStatus('off'));
+    socket.on('connect_error', () => setSocketStatus('off'));
+
+    socket.on('cadete:ubicacion', (payload: CadeteUbicacionEvent) => {
+      if (typeof payload?.lat !== 'number' || typeof payload?.lng !== 'number') return;
+      if (!payload.cadete_id) return;
+      const ts = payload.ts ?? new Date().toISOString();
+      setItems((prev) => {
+        if (!prev) return prev;
+        return prev.map((c) => {
+          if (c.usuario_id !== payload.cadete_id) return c;
+          return {
+            ...c,
+            ubicacion_actual: { lat: payload.lat, lng: payload.lng },
+            ubicacion_actualizada_en: ts,
+            disponibilidad: payload.disponibilidad ?? c.disponibilidad,
+          };
+        });
+      });
+      setNow(Date.now());
+    });
+
+    return () => {
+      socket.removeAllListeners();
+      socket.disconnect();
+    };
+  }, []);
 
   async function action(id: string, estado: string) {
     setBusy(id);
@@ -221,15 +276,27 @@ export function CadetesPage() {
       id: c.usuario_id,
       lat: c.ubicacion_actual!.lat,
       lng: c.ubicacion_actual!.lng,
-      label: c.nombre ?? c.dni,
-      color: c.disponibilidad === 'online' ? '#1f7a4c' : '#5a6b78',
+      label: fleetMarkerLabel(
+        c.nombre ?? c.dni,
+        c.disponibilidad,
+        c.ubicacion_actualizada_en,
+        now,
+      ),
+      color: fleetMarkerColor(c.disponibilidad, c.ubicacion_actualizada_en, now),
     }));
+
+  const liveHint =
+    socketStatus === 'live'
+      ? 'Flota en vivo'
+      : socketStatus === 'connecting'
+        ? 'Conectando mapa…'
+        : 'Mapa sin socket (última posición)';
 
   return (
     <div className="page-enter">
       <PageHeader
         title="Cadetes"
-        subtitle="Alta con dirección y PDFs · aprobar, suspender y monitorear flota"
+        subtitle={`Alta con dirección y PDFs · aprobar, suspender y monitorear flota · ${liveHint}`}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn btn-ghost" onClick={load}>
@@ -245,6 +312,9 @@ export function CadetesPage() {
 
       <div className="panel panel-pad" style={{ marginBottom: '1rem' }}>
         <MapView markers={markers} />
+        <p className="muted" style={{ marginTop: 8, marginBottom: 0, fontSize: 13 }}>
+          Verde online · naranja en viaje · gris GPS &gt;5 min o offline
+        </p>
       </div>
 
       <div className="panel table-wrap">

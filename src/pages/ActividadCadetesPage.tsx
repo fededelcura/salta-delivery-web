@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../lib/api';
+import { formatGpsAge, fleetMarkerColor, fleetMarkerLabel } from '../lib/gps';
 import { downloadPdfReport, formatMoneyPdf } from '../lib/pdf';
+import {
+  connectAdminSocket,
+  type CadeteUbicacionEvent,
+} from '../lib/socket';
 import type { CadeteActividadStats, CadeteAdmin, ReporteGuardado } from '../types';
 import { Badge, ErrorBox, Loading, Money, PageHeader } from '../components/ui';
 import { MapView } from '../components/MapView';
+
+function getToken(): string | null {
+  return localStorage.getItem('sd_token');
+}
 
 const BLOQUES = [
   { id: 'en_vivo', label: 'Flota en vivo' },
@@ -113,6 +122,8 @@ export function ActividadCadetesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [socketStatus, setSocketStatus] = useState<'connecting' | 'live' | 'off'>('connecting');
+  const [now, setNow] = useState(() => Date.now());
 
   function load() {
     if (bloques.length === 0) {
@@ -137,7 +148,7 @@ export function ActividadCadetesPage() {
     ])
       .then(([r, g, cad]) => {
         setData(r);
-        setGuardados(g.filter((x) => x.tipo === 'actividad_cadetes'));
+        setGuardados(g.filter((x: import('../types').ReporteGuardado) => x.tipo === 'actividad_cadetes'));
         setCadetes(cad);
       })
       .catch((e: Error) => setError(e.message));
@@ -146,6 +157,76 @@ export function ActividadCadetesPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      setSocketStatus('off');
+      return;
+    }
+
+    const socket = connectAdminSocket(token);
+    setSocketStatus('connecting');
+
+    socket.on('connect', () => setSocketStatus('live'));
+    socket.on('disconnect', () => setSocketStatus('off'));
+    socket.on('connect_error', () => setSocketStatus('off'));
+
+    socket.on('cadete:ubicacion', (payload: CadeteUbicacionEvent) => {
+      if (typeof payload?.lat !== 'number' || typeof payload?.lng !== 'number') return;
+      if (!payload.cadete_id) return;
+      const ts = payload.ts ?? new Date().toISOString();
+      setData((prev) => {
+        if (!prev) return prev;
+        const idx = prev.trabajando_ahora.findIndex((c) => c.usuario_id === payload.cadete_id);
+        if (idx === -1) {
+          const disp = payload.disponibilidad;
+          if (disp !== 'online' && disp !== 'en_viaje' && disp !== 'ocupado') return prev;
+          return {
+            ...prev,
+            trabajando_ahora: [
+              ...prev.trabajando_ahora,
+              {
+                usuario_id: payload.cadete_id,
+                nombre: payload.cadete_id.slice(0, 8),
+                disponibilidad: disp,
+                zona_h3: null,
+                zona_nombre: null,
+                ubicacion: { lat: payload.lat, lng: payload.lng },
+                ubicacion_actualizada_en: ts,
+                desde_sesion: ts,
+                plan_suscripcion: '—',
+                total_viajes: 0,
+              },
+            ],
+            resumen: {
+              ...prev.resumen,
+              trabajando_ahora: prev.resumen.trabajando_ahora + 1,
+            },
+          };
+        }
+        const next = [...prev.trabajando_ahora];
+        next[idx] = {
+          ...next[idx],
+          ubicacion: { lat: payload.lat, lng: payload.lng },
+          ubicacion_actualizada_en: ts,
+          disponibilidad: payload.disponibilidad ?? next[idx].disponibilidad,
+        };
+        return { ...prev, trabajando_ahora: next };
+      });
+      setNow(Date.now());
+    });
+
+    return () => {
+      socket.removeAllListeners();
+      socket.disconnect();
+    };
   }, []);
 
   const zonasDisponibles = useMemo(() => {
@@ -465,15 +546,22 @@ export function ActividadCadetesPage() {
       id: c.usuario_id,
       lat: c.ubicacion!.lat,
       lng: c.ubicacion!.lng,
-      label: c.nombre,
-      color: c.disponibilidad === 'en_viaje' ? '#c45c26' : '#1f7a4c',
+      label: fleetMarkerLabel(c.nombre, c.disponibilidad, c.ubicacion_actualizada_en, now),
+      color: fleetMarkerColor(c.disponibilidad, c.ubicacion_actualizada_en, now),
     }));
+
+  const liveHint =
+    socketStatus === 'live'
+      ? 'flota en vivo'
+      : socketStatus === 'connecting'
+        ? 'conectando…'
+        : 'sin socket';
 
   return (
     <div className="page-enter">
       <PageHeader
         title="Actividad de cadetes"
-        subtitle="Filtros + PDF + guardar reporte (igual que estadísticas)"
+        subtitle={`Filtros + PDF + guardar reporte · mapa ${liveHint}`}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn btn-ghost" onClick={load}>
@@ -652,6 +740,7 @@ export function ActividadCadetesPage() {
                     <tr>
                       <th>Cadete</th>
                       <th>Estado</th>
+                      <th>GPS</th>
                       <th>Zona</th>
                       <th>Desde</th>
                     </tr>
@@ -662,6 +751,9 @@ export function ActividadCadetesPage() {
                         <td style={{ fontWeight: 600 }}>{c.nombre}</td>
                         <td>
                           <Badge tone={toneDisp(c.disponibilidad)}>{c.disponibilidad}</Badge>
+                        </td>
+                        <td className="muted">
+                          {formatGpsAge(c.ubicacion_actualizada_en, now)}
                         </td>
                         <td>{c.zona_nombre ?? c.zona_h3 ?? '—'}</td>
                         <td className="muted">{fmtDesde(c.desde_sesion)}</td>
@@ -675,7 +767,12 @@ export function ActividadCadetesPage() {
           <div className="panel panel-pad">
             <h3 style={{ marginTop: 0 }}>Mapa flota activa</h3>
             {markers.length ? (
-              <MapView markers={markers} />
+              <>
+                <MapView markers={markers} />
+                <p className="muted" style={{ marginTop: 8, marginBottom: 0, fontSize: 13 }}>
+                  Verde online · naranja en viaje · dorado ocupado · gris GPS &gt;5 min
+                </p>
+              </>
             ) : (
               <p className="muted">Sin ubicación GPS reciente.</p>
             )}

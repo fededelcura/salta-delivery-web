@@ -26,6 +26,7 @@ export type CadeteUbicacionEvent = {
   lat: number;
   lng: number;
   ts?: string;
+  disponibilidad?: string;
 };
 
 export type ViajeEstadoEvent = {

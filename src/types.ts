@@ -76,6 +76,7 @@ export interface CadeteAdmin {
   nombre?: string;
   estado?: string;
   ubicacion_actual?: { lat: number; lng: number } | null;
+  ubicacion_actualizada_en?: string | null;
   fotos_documentos?: {
     dni_pdf?: string;
     carnet_pdf?: string;
@@ -390,4 +391,68 @@ export interface ZonaHex {
   demanda_actual: number;
   activa: boolean;
   nombre: string | null;
+}
+
+/** Tipos portal cliente / cadete (MVP web) */
+export interface ViajePortal {
+  id: string;
+  cliente_id: string;
+  cadete_id: string | null;
+  tipo_servicio: string;
+  origen_direccion: string;
+  destino_direccion: string;
+  origen?: { lat: number; lng: number };
+  destino?: { lat: number; lng: number };
+  distancia_km: number | null;
+  tiempo_estimado_min?: number | null;
+  tarifa_estimada?: number | null;
+  tarifa_final: number | null;
+  estado: string;
+  fecha_solicitud: string;
+  metodo_pago: string;
+  estado_pago: string;
+}
+
+export interface ClientePortalPerfil {
+  usuario_id: string;
+  dni?: string;
+  plan_suscripcion?: string;
+  tipo_cuenta?: string;
+  metodo_pago_preferido?: string;
+  direcciones_favoritas?: Array<{
+    alias: string;
+    direccion: string;
+    lat: number;
+    lng: number;
+  }>;
+  email?: string;
+  telefono?: string;
+  nombre?: string;
+}
+
+export interface CadetePortal {
+  usuario_id: string;
+  disponibilidad: string;
+  estado_verificacion?: string;
+  plan_suscripcion?: string;
+  comision_actual?: number;
+  total_viajes?: number;
+  total_ganado?: number;
+  ubicacion_actual?: { lat: number; lng: number } | null;
+  nombre?: string;
+  email?: string;
+}
+
+export interface GananciasPortal {
+  total_ganado?: number;
+  viajes_finalizados?: number;
+  comision_actual?: number;
+  periodo?: string;
+  [key: string]: unknown;
+}
+
+export interface CalcularTarifaPortal {
+  distancia_km: number;
+  tiempo_estimado_min: number;
+  detalle?: { total?: number; tarifa_estimada?: number; [key: string]: unknown };
 }

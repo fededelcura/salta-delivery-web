@@ -2,15 +2,16 @@ import { FormEvent, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiClientError } from '../lib/api';
+import { homeForRole } from '../lib/roles';
 
 export function LoginPage() {
   const { session, login } = useAuth();
-  const [email, setEmail] = useState('admin@saltadelivery.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  if (session) return <Navigate to="/panel" replace />;
+  if (session) return <Navigate to={homeForRole(session.usuario.rol)} replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -31,7 +32,7 @@ export function LoginPage() {
         <img src="/hero-salta.jpg" alt="" />
         <div className="login-visual-copy">
           <p className="login-brand">Salta Delivery</p>
-          <p>Operá tu flota desde un solo lugar.</p>
+          <p>Admin, clientes y cadetes en un solo portal.</p>
         </div>
       </div>
       <form className="login-card" onSubmit={onSubmit}>
@@ -39,7 +40,7 @@ export function LoginPage() {
           ← Volver
         </Link>
         <h1>Salta Delivery</h1>
-        <p className="sub">Acceso al panel administrador</p>
+        <p className="sub">Ingresá con tu email (admin, cliente o cadete)</p>
         {error ? <div className="error-banner">{error}</div> : null}
         <div className="stack">
           <div className="field">
@@ -51,6 +52,7 @@ export function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="username"
+              placeholder="tu@email.com"
             />
           </div>
           <div className="field">
