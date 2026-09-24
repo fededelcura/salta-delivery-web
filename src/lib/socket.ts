@@ -1,13 +1,17 @@
 import { io, type Socket } from 'socket.io-client';
 
+const PROD_SOCKET = 'https://salta-delivery-api.onrender.com';
+
 export function getSocketUrl(): string {
   const explicit = import.meta.env.VITE_SOCKET_URL as string | undefined;
-  if (explicit) return explicit.replace(/\/$/, '');
+  if (explicit?.startsWith('http')) return explicit.replace(/\/$/, '');
 
   const api = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
   if (api.startsWith('http')) {
     return api.replace(/\/api\/?$/, '');
   }
+
+  if (import.meta.env.PROD) return PROD_SOCKET;
 
   // En dev, Vite proxyea /socket.io → API
   return window.location.origin;

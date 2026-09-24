@@ -1,6 +1,15 @@
 import type { ApiResponse } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
+const PROD_API = 'https://salta-delivery-api.onrender.com/api';
+
+function resolveApiUrl(): string {
+  const raw = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (raw?.startsWith('http')) return raw.replace(/\/$/, '');
+  if (import.meta.env.PROD) return PROD_API;
+  return raw || 'http://localhost:3000/api';
+}
+
+const API_URL = resolveApiUrl();
 
 export class ApiClientError extends Error {
   status: number;
