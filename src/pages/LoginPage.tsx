@@ -25,7 +25,7 @@ export function LoginPage() {
         err instanceof ApiClientError || err instanceof Error ? err.message : 'Error';
       const msg =
         /failed to fetch|networkerror|load failed/i.test(raw)
-          ? 'No se pudo conectar con la API. En Vercel falta VITE_API_URL apuntando a Railway (ver docs/DEPLOY-VERCEL.md).'
+          ? 'No se pudo conectar con la API. En Vercel falta VITE_API_URL apuntando a Render (ver docs/DEPLOY-VERCEL.md).'
           : raw;
       setError(msg);
     } finally {
