@@ -694,6 +694,40 @@ table.data tr.row-selected td {
   border-color: var(--brand);
 }
 
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.password-field input {
+  flex: 1;
+  width: 100%;
+  padding-right: 4.5rem;
+  min-width: 0;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.password-toggle:hover {
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .login-page {
   min-height: 100vh;
   display: grid;

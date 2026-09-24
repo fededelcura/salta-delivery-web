@@ -8,6 +8,7 @@ export function LoginPage() {
   const { session, login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,7 +21,13 @@ export function LoginPage() {
     try {
       await login(email, password);
     } catch (err) {
-      setError(err instanceof ApiClientError || err instanceof Error ? err.message : 'Error');
+      const raw =
+        err instanceof ApiClientError || err instanceof Error ? err.message : 'Error';
+      const msg =
+        /failed to fetch|networkerror|load failed/i.test(raw)
+          ? 'No se pudo conectar con la API. En Vercel falta VITE_API_URL apuntando a Railway (ver docs/DEPLOY-VERCEL.md).'
+          : raw;
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -57,14 +64,25 @@ export function LoginPage() {
           </div>
           <div className="field">
             <label htmlFor="password">Contraseña</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
+            <div className="password-field">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                title={showPassword ? 'Ocultar' : 'Mostrar'}
+              >
+                {showPassword ? 'Ocultar' : 'Ver'}
+              </button>
+            </div>
           </div>
           <button className="btn btn-primary" type="submit" disabled={loading}>
             {loading ? 'Ingresando…' : 'Ingresar'}
