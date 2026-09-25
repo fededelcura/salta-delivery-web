@@ -73,6 +73,11 @@ export function ClienteInicioPage() {
                     <td>
                       <div style={{ fontWeight: 600 }}>{v.origen_direccion}</div>
                       <div className="muted">{v.destino_direccion}</div>
+                      {v.estado === 'buscando_cadete' || v.estado === 'solicitado' ? (
+                        <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                          Buscando cadete… Un operador ya fue notificado.
+                        </div>
+                      ) : null}
                     </td>
                     <td>
                       <Badge tone={toneEstado(v.estado)}>{v.estado}</Badge>

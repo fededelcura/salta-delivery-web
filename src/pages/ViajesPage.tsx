@@ -54,6 +54,37 @@ export function ViajesPage() {
   const [socketStatus, setSocketStatus] = useState<'connecting' | 'live' | 'off'>('connecting');
   const [lastPing, setLastPing] = useState<string | null>(null);
   const [comps, setComps] = useState<Comprobante[]>([]);
+  const [despachoMsg, setDespachoMsg] = useState<string | null>(null);
+  const [despachoBusy, setDespachoBusy] = useState(false);
+
+  const TIMEOUT_MS = 5 * 60 * 1000;
+
+  function minutosBuscando(v: ViajeAdmin): number {
+    return (Date.now() - new Date(v.fecha_solicitud).getTime()) / 60_000;
+  }
+
+  function esUrgente(v: ViajeAdmin): boolean {
+    return (
+      (v.estado === 'buscando_cadete' || v.estado === 'solicitado') &&
+      !v.cadete_id &&
+      Date.now() - new Date(v.fecha_solicitud).getTime() >= TIMEOUT_MS
+    );
+  }
+
+  async function despacharCercano(id: string) {
+    setDespachoBusy(true);
+    setDespachoMsg(null);
+    setError(null);
+    try {
+      const r = await adminApi.despacharCercano(id);
+      setDespachoMsg(r.mensaje);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo despachar');
+    } finally {
+      setDespachoBusy(false);
+    }
+  }
 
   const load = useCallback(() => {
     return adminApi
@@ -254,11 +285,21 @@ export function ViajesPage() {
             <tbody>
               {items.map((v) => {
                 const hasGps = Boolean(live[v.id] || (v.cadete_id && live[v.cadete_id]));
+                const urgente = esUrgente(v);
+                const buscando =
+                  (v.estado === 'buscando_cadete' || v.estado === 'solicitado') && !v.cadete_id;
                 return (
                   <tr
                     key={v.id}
                     className={selected?.id === v.id ? 'row-selected' : undefined}
-                    style={{ cursor: 'pointer' }}
+                    style={{
+                      cursor: 'pointer',
+                      background: urgente
+                        ? 'rgba(196, 92, 38, 0.12)'
+                        : buscando
+                          ? 'rgba(12, 107, 107, 0.06)'
+                          : undefined,
+                    }}
                     onClick={() => setSelected(v)}
                   >
                     <td className="mono">
@@ -268,6 +309,13 @@ export function ViajesPage() {
                           <span className="live-dot" /> GPS
                         </div>
                       )}
+                      {buscando ? (
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {urgente
+                            ? `⚠ ${Math.floor(minutosBuscando(v))} min sin cadete`
+                            : `Buscando · ${Math.floor(minutosBuscando(v))} min`}
+                        </div>
+                      ) : null}
                     </td>
                     <td>{TIPO_LABEL[v.tipo_servicio] ?? v.tipo_servicio}</td>
                     <td>
@@ -275,7 +323,7 @@ export function ViajesPage() {
                       <div className="muted">{v.destino_direccion}</div>
                     </td>
                     <td>
-                      <Badge tone={toneEstado(v.estado)}>{v.estado}</Badge>
+                      <Badge tone={urgente ? 'danger' : toneEstado(v.estado)}>{v.estado}</Badge>
                     </td>
                     <td>{v.tarifa_final != null ? <Money value={v.tarifa_final} /> : '—'}</td>
                     <td>
@@ -308,6 +356,31 @@ export function ViajesPage() {
                 <p className="muted" style={{ fontSize: 13 }}>
                   Esperando GPS del cadete…
                 </p>
+              ) : null}
+              {(selected.estado === 'buscando_cadete' || selected.estado === 'solicitado') &&
+              !selected.cadete_id ? (
+                <div style={{ marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={despachoBusy}
+                    onClick={() => void despacharCercano(selected.id)}
+                  >
+                    {despachoBusy ? 'Despachando…' : 'Despachar cercano'}
+                  </button>
+                  {esUrgente(selected) ? (
+                    <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
+                      Más de 5 min sin accept — incidencia escalada al admin.
+                    </p>
+                  ) : (
+                    <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
+                      Reenvía la oferta a cadetes online cerca del origen.
+                    </p>
+                  )}
+                  {despachoMsg ? (
+                    <p style={{ fontSize: 13, marginTop: 6 }}>{despachoMsg}</p>
+                  ) : null}
+                </div>
               ) : null}
               <MapView markers={markers} followId={liveForSelected ? 'cadete' : undefined} />
               {comps.length > 0 ? (

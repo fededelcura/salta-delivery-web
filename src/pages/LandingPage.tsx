@@ -27,8 +27,8 @@ export function LandingPage() {
           <nav className="lp-links" aria-label="Principal">
             <a href="#como">Cómo funciona</a>
             <a href="#cobertura">Cobertura</a>
-            <Link className="lp-nav-cta" to="/login">
-              Panel
+            <Link className="lp-nav-cta" to="/pedir">
+              Pedir
             </Link>
           </nav>
         </header>
@@ -44,9 +44,9 @@ export function LandingPage() {
             Cadetes en moto por toda Salta. Pedí un envío en minutos y seguí el viaje en vivo.
           </p>
           <div className="lp-cta">
-            <a className="lp-btn lp-btn-primary" href="#como">
-              Empezar hoy
-            </a>
+            <Link className="lp-btn lp-btn-primary" to="/pedir">
+              Pedir ahora
+            </Link>
             <Link className="lp-btn lp-btn-accent" to="/login">
               Acceso admin
             </Link>
@@ -103,8 +103,8 @@ export function LandingPage() {
         <section className="lp-finale">
           <h2>Listo para mover Salta</h2>
           <p>Panel operativo para tu flota, tus clientes y tus viajes.</p>
-          <Link className="lp-btn lp-btn-light" to="/login">
-            Entrar al panel
+          <Link className="lp-btn lp-btn-light" to="/pedir">
+            Pedir un envío
           </Link>
         </section>
       </main>

@@ -2,11 +2,24 @@ import type { ApiResponse } from '../types';
 
 const PROD_API = 'https://salta-delivery-api.onrender.com/api';
 
+/** En DEV siempre usamos el proxy de Vite (/api → :3000). Evita Failed to fetch por localhost/IPv6/CORS. */
 function resolveApiUrl(): string {
   const raw = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+
+  if (import.meta.env.DEV) {
+    if (
+      !raw ||
+      raw === '/api' ||
+      raw.startsWith('/') ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/api)?\/?$/i.test(raw)
+    ) {
+      return '/api';
+    }
+    return raw.replace(/\/$/, '');
+  }
+
   if (raw?.startsWith('http')) return raw.replace(/\/$/, '');
-  if (import.meta.env.PROD) return PROD_API;
-  return raw || 'http://localhost:3000/api';
+  return PROD_API;
 }
 
 const API_URL = resolveApiUrl();
@@ -24,7 +37,7 @@ export class ApiClientError extends Error {
   }
 }
 
-function getToken(): string | null {
+export function getToken(): string | null {
   return localStorage.getItem('sd_token');
 }
 
@@ -42,10 +55,31 @@ export async function api<T>(
   const token = getToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const urls = [API_URL];
+  if (import.meta.env.DEV && API_URL !== '/api') {
+    urls.push('/api');
+  }
+
+  let res: Response | null = null;
+  for (const base of urls) {
+    try {
+      res = await fetch(`${base}${path}`, {
+        ...options,
+        headers,
+      });
+      break;
+    } catch {
+      /* probar siguiente base */
+    }
+  }
+
+  if (!res) {
+    throw new ApiClientError(
+      0,
+      'NETWORK_ERROR',
+      'No se pudo conectar con la API. Abrí http://127.0.0.1:5174 (no otro host) y asegurate que la API esté en el puerto 3000 (cd api && npm run dev).',
+    );
+  }
 
   const raw = await res.text();
   let body: ApiResponse<T> | null = null;
@@ -280,6 +314,13 @@ export const adminApi = {
     api<import('../types').ViajeAdmin[]>(
       `/admin/viajes${estado ? `?estado=${encodeURIComponent(estado)}` : ''}`,
     ),
+  despacharCercano: (id: string) =>
+    api<{
+      viaje_id: string;
+      candidatos: number;
+      top: { cadete_id: string; score: number; distancia_km: number } | null;
+      mensaje: string;
+    }>(`/admin/viajes/${id}/despachar-cercano`, { method: 'POST' }),
   reportes: (params?: {
     dias?: number;
     tipos?: string[];
@@ -406,6 +447,20 @@ export const suscripcionesApi = {
 /** Portal cliente (mismo contrato que mobile-cliente) */
 export const clientePortalApi = {
   perfil: () => api<import('../types').ClientePortalPerfil>('/clientes/perfil'),
+  actualizarPreferencias: (payload: {
+    metodo_pago_preferido?: string;
+    direcciones_favoritas?: Array<{
+      alias: string;
+      direccion: string;
+      lat: number;
+      lng: number;
+      es_principal?: boolean;
+    }>;
+  }) =>
+    api<import('../types').ClientePortalPerfil>('/clientes/perfil', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
   viajes: () => api<import('../types').ViajePortal[]>('/clientes/viajes'),
   solicitar: (payload: {
     tipo_servicio: string;
@@ -417,6 +472,25 @@ export const clientePortalApi = {
     tiempo_preparacion_min?: number;
   }) =>
     api<import('../types').ViajePortal>('/clientes/solicitar-viaje', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  solicitarInvitado: (payload: {
+    telefono: string;
+    nombre: string;
+    email?: string;
+    tipo_servicio: string;
+    origen_direccion: string;
+    origen: { lat: number; lng: number };
+    destino_direccion: string;
+    destino: { lat: number; lng: number };
+    metodo_pago: string;
+    tiempo_preparacion_min?: number;
+  }) =>
+    api<{
+      viaje: import('../types').ViajePortal;
+      session: import('../types').AuthSession;
+    }>('/clientes/solicitar-invitado', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
