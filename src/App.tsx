@@ -7,6 +7,7 @@ import { ClienteLayout } from './layouts/ClienteLayout';
 import { CadeteLayout } from './layouts/CadeteLayout';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage, VerifyEmailPage } from './pages/VerifyEmailPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { CadetesPage } from './pages/CadetesPage';
 import { ActividadCadetesPage } from './pages/ActividadCadetesPage';
@@ -46,6 +47,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/registro" element={<RegisterPage />} />
+        <Route path="/verificar-email" element={<VerifyEmailPage />} />
         <Route element={<Protected />}>
           <Route path="/home" element={<HomeRedirect />} />
 

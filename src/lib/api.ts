@@ -77,6 +77,28 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
+  register: (payload: {
+    email: string;
+    telefono: string;
+    nombre: string;
+    password: string;
+    rol: 'cliente' | 'cadete';
+    dni?: string;
+  }) =>
+    api<{ email: string; requiresEmailVerification: true }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  verifyEmail: (email: string, codigo: string) =>
+    api<import('../types').AuthSession>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email, codigo }),
+    }),
+  resendVerification: (email: string) =>
+    api<{ email: string; sent: boolean }>('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
 };
 
 export const adminApi = {

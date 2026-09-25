@@ -1,11 +1,12 @@
 import { FormEvent, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiClientError } from '../lib/api';
 import { homeForRole } from '../lib/roles';
 
 export function LoginPage() {
   const { session, login } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,12 +22,19 @@ export function LoginPage() {
     try {
       await login(email, password);
     } catch (err) {
+      if (err instanceof ApiClientError && err.code === 'EMAIL_NOT_VERIFIED') {
+        const detailEmail =
+          err.details && typeof err.details === 'object' && 'email' in err.details
+            ? String((err.details as { email: string }).email)
+            : email;
+        navigate(`/verificar-email?email=${encodeURIComponent(detailEmail)}`);
+        return;
+      }
       const raw =
         err instanceof ApiClientError || err instanceof Error ? err.message : 'Error';
-      const msg =
-        /failed to fetch|networkerror|load failed/i.test(raw)
-          ? 'No se pudo conectar con la API. En Vercel falta VITE_API_URL apuntando a Render (ver docs/DEPLOY-VERCEL.md).'
-          : raw;
+      const msg = /failed to fetch|networkerror|load failed/i.test(raw)
+        ? 'No se pudo conectar con la API. En Vercel falta VITE_API_URL apuntando a Render (ver docs/DEPLOY-VERCEL.md).'
+        : raw;
       setError(msg);
     } finally {
       setLoading(false);
@@ -87,6 +95,11 @@ export function LoginPage() {
           <button className="btn btn-primary" type="submit" disabled={loading}>
             {loading ? 'Ingresando…' : 'Ingresar'}
           </button>
+          <p className="sub" style={{ marginTop: '0.5rem' }}>
+            ¿Nuevo? <Link to="/registro">Crear cuenta</Link>
+            {' · '}
+            <Link to="/verificar-email">Verificar email</Link>
+          </p>
         </div>
       </form>
     </div>

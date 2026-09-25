@@ -12,6 +12,7 @@ import type { AuthSession } from '../types';
 interface AuthState {
   session: AuthSession | null;
   login: (email: string, password: string) => Promise<void>;
+  completeSession: (data: AuthSession) => void;
   logout: () => void;
 }
 
@@ -51,13 +52,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(data);
   }, []);
 
+  const completeSession = useCallback((data: AuthSession) => {
+    setToken(data.tokens.accessToken);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    setSession(data);
+  }, []);
+
   const logout = useCallback(() => {
     setToken(null);
     localStorage.removeItem(STORAGE_KEY);
     setSession(null);
   }, []);
 
-  const value = useMemo(() => ({ session, login, logout }), [session, login, logout]);
+  const value = useMemo(
+    () => ({ session, login, completeSession, logout }),
+    [session, login, completeSession, logout],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
