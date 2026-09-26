@@ -410,24 +410,31 @@ export function PedirPage() {
     destino: { lat: number; lng: number };
     metodo_pago: string;
   }) {
-    if (!nombre.trim() || telefono.trim().length < 8) {
+    const telDigits = telefono.replace(/\D/g, '');
+    if (!nombre.trim() || telDigits.length < 8) {
       setError('Completá tu nombre y teléfono (mín. 8 dígitos) para confirmar el pedido.');
       return false;
     }
     const result = await clientePortalApi.solicitarInvitado({
       ...payloadBase,
       nombre: nombre.trim(),
-      telefono: telefono.trim(),
+      telefono: telDigits,
     });
+    if (!result?.session?.tokens?.accessToken) {
+      setError('Pedido creado pero no recibimos sesión. Recargá e iniciá con tu teléfono.');
+      return false;
+    }
     completeSession(result.session);
-    navigate('/app');
+    navigate('/app', { replace: true });
     return true;
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!origen || !destino) {
-      setError('Completá origen y destino (búsqueda, clic en el mapa o arrastrá el pin)');
+      setError(
+        'Falta origen o destino: buscá una dirección de la lista, tocá el mapa o arrastrá el pin.',
+      );
       return;
     }
     if (
@@ -446,6 +453,14 @@ export function PedirPage() {
       return;
     }
 
+    if (!hasAuth) {
+      const telDigits = telefono.replace(/\D/g, '');
+      if (!nombre.trim() || telDigits.length < 8) {
+        setError('Completá tu nombre y teléfono (mín. 8 dígitos) abajo para confirmar.');
+        return;
+      }
+    }
+
     const payloadBase = {
       tipo_servicio: tipo,
       origen_direccion: buildDireccion(origen, origenNumero, origenPiso, origenDpto),
@@ -461,7 +476,7 @@ export function PedirPage() {
       if (hasAuth && getToken()) {
         try {
           await clientePortalApi.solicitar(payloadBase);
-          navigate('/app');
+          navigate('/app', { replace: true });
           return;
         } catch (err) {
           if (isBearerOrUnauthorized(err)) {
@@ -512,6 +527,8 @@ export function PedirPage() {
       : []),
   ];
 
+  const mapboxOk = Boolean(import.meta.env.VITE_MAPBOX_TOKEN);
+
   return (
     <div className="page-enter" style={{ maxWidth: 720, margin: '0 auto', padding: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
@@ -524,6 +541,9 @@ export function PedirPage() {
         </Link>
       </div>
 
+      {!mapboxOk ? (
+        <ErrorBox message="Mapa no configurado (falta token Mapbox). Pedí a soporte o usá la versión local." />
+      ) : null}
       {error ? <ErrorBox message={error} /> : null}
       {gpsHint && !error ? <p className="muted">{gpsHint}</p> : null}
 
@@ -788,8 +808,22 @@ export function PedirPage() {
             </>
           ) : null}
 
-          <button type="submit" className="btn btn-primary" disabled={busy || !origen || !destino}>
-            {busy ? 'Solicitando…' : 'Confirmar pedido'}
+          {(!origen || !destino) && !error ? (
+            <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+              {!origen && !destino
+                ? 'Elegí origen y destino (sugerencia o pin) para habilitar el pedido.'
+                : !origen
+                  ? 'Falta fijar el origen.'
+                  : 'Falta fijar el destino.'}
+            </p>
+          ) : null}
+
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy
+              ? 'Solicitando…'
+              : !origen || !destino
+                ? 'Confirmar pedido (faltan direcciones)'
+                : 'Confirmar pedido'}
           </button>
         </div>
       </form>
