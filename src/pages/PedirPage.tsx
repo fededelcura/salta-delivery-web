@@ -132,6 +132,8 @@ export function PedirPage() {
   const navigate = useNavigate();
   /** Solo con sd_token real: session.tokens sin getToken() disparaba "Token Bearer requerido". */
   const hasAuth = session?.usuario.rol === 'cliente' && Boolean(getToken());
+  const getCenterRef = useRef<(() => { lat: number; lng: number } | null) | null>(null);
+  const pinSeqRef = useRef({ origen: 0, destino: 0 });
 
   const [origen, setOrigen] = useState<Spot | null>(null);
   const [destino, setDestino] = useState<Spot | null>(null);
@@ -257,30 +259,48 @@ export function PedirPage() {
       return;
     }
     setError(null);
-    const place = await reverseGeocode(lat, lng);
-    if (!place && !isInCoverage(lat, lng)) {
-      setError(OUT_OF_ZONE_MSG);
+    const seq = ++pinSeqRef.current[target];
+    const setSpot = (direccion: string) => {
+      const spot = { direccion, lat, lng };
+      const num = extractStreetNumber(direccion);
+      if (target === 'origen') {
+        setOrigen(spot);
+        setOrigenQuery(direccion);
+        setOrigenNumero(num);
+        setOrigenLocked(true);
+        setSugerenciasOrigen([]);
+      } else {
+        setDestino(spot);
+        setDestinoQuery(direccion);
+        setDestinoNumero(num);
+        setDestinoLocked(true);
+        setSugerenciasDestino([]);
+      }
+    };
+    setSpot(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    setGpsHint('Pin fijado. Buscando la dirección…');
+    let place: GeoPlace | null = null;
+    try {
+      place = await reverseGeocode(lat, lng);
+    } catch {
+      place = null;
+    }
+    if (seq !== pinSeqRef.current[target]) return;
+    if (place) setSpot(place.direccion);
+    setGpsHint(
+      place
+        ? 'Pin fijado. Arrastralo para afinar. Completá el número de calle si hace falta.'
+        : 'Pin fijado (sin dirección exacta). Escribí calle y número o arrastrá el pin.',
+    );
+  }
+
+  function fijarEnCentro() {
+    const c = getCenterRef.current?.();
+    if (!c) {
+      setError('El mapa todavía no cargó. Probá buscar la dirección.');
       return;
     }
-    const direccion = place?.direccion ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    const spot = { direccion, lat, lng };
-    const num = extractStreetNumber(direccion);
-    if (target === 'origen') {
-      setOrigen(spot);
-      setOrigenQuery(direccion);
-      setOrigenNumero(num);
-      setOrigenLocked(true);
-      setSugerenciasOrigen([]);
-    } else {
-      setDestino(spot);
-      setDestinoQuery(direccion);
-      setDestinoNumero(num);
-      setDestinoLocked(true);
-      setSugerenciasDestino([]);
-    }
-    setGpsHint(
-      'Pin fijado. Arrastralo para afinar. Completá el número de calle si hace falta.',
-    );
+    void applyPin(mapTarget, c.lat, c.lng);
   }
 
   async function usarGps() {
@@ -290,7 +310,9 @@ export function PedirPage() {
     try {
       const pos = await getCurrentPosition();
       if (!isInCoverage(pos.lat, pos.lng)) {
-        setError(OUT_OF_ZONE_MSG);
+        setError(
+          `${OUT_OF_ZONE_MSG} Tu GPS marca fuera de la zona: buscá la dirección o tocá el mapa.`,
+        );
         return;
       }
       await applyPin('origen', pos.lat, pos.lng);
@@ -562,6 +584,14 @@ export function PedirPage() {
         >
           Mapa → Destino
         </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={fijarEnCentro}
+          disabled={!mapboxOk}
+        >
+          Fijar pin en el centro del mapa
+        </button>
         <span className="muted" style={{ alignSelf: 'center', fontSize: '0.85rem' }}>
           Tocá el mapa para fijar {mapTarget}
         </span>
@@ -575,6 +605,7 @@ export function PedirPage() {
           followId={mapTarget === 'destino' && destino ? 'destino' : origen ? 'origen' : undefined}
           onMapClick={onMapClick}
           onMarkerDragEnd={onMarkerDragEnd}
+          getCenterRef={getCenterRef}
         />
       </div>
 

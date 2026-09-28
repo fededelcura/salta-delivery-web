@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import mapboxgl from 'mapbox-gl';
 
 const SALTA: [number, number] = [-65.4232, -24.7821]; // lng, lat
@@ -19,6 +19,7 @@ export function MapView({
   followId,
   onMapClick,
   onMarkerDragEnd,
+  getCenterRef,
 }: {
   markers?: MapMarker[];
   center?: { lat: number; lng: number };
@@ -27,7 +28,10 @@ export function MapView({
   followId?: string;
   onMapClick?: (lat: number, lng: number) => void;
   onMarkerDragEnd?: (id: string, lat: number, lng: number) => void;
+  /** Se llena con una función que devuelve el centro actual del mapa */
+  getCenterRef?: MutableRefObject<(() => { lat: number; lng: number } | null) | null>;
 }) {
+  const [mapError, setMapError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
@@ -62,10 +66,29 @@ export function MapView({
       onMapClickRef.current?.(e.lngLat.lat, e.lngLat.lng);
     };
     map.on('click', handleClick);
+    map.on('load', () => {
+      setMapError(null);
+      map.resize();
+    });
+    map.on('error', (e) => {
+      const status = (e.error as { status?: number } | undefined)?.status;
+      if (status === 401 || status === 403) {
+        setMapError('Mapbox rechazó el token. Revisá VITE_MAPBOX_TOKEN.');
+      } else if (!map.isStyleLoaded()) {
+        setMapError('No se pudo cargar el mapa. Revisá tu conexión.');
+      }
+    });
     mapRef.current = map;
+    if (getCenterRef) {
+      getCenterRef.current = () => {
+        const c = mapRef.current?.getCenter();
+        return c ? { lat: c.lat, lng: c.lng } : null;
+      };
+    }
 
     return () => {
       map.off('click', handleClick);
+      if (getCenterRef) getCenterRef.current = null;
       markersRef.current.forEach((m) => m.remove());
       markersRef.current.clear();
       map.remove();
@@ -163,5 +186,17 @@ export function MapView({
     );
   }
 
-  return <div className="map-box" ref={ref} />;
+  return (
+    <div style={{ position: 'relative' }}>
+      <div className="map-box" ref={ref} />
+      {mapError && (
+        <div
+          className="error-banner"
+          style={{ position: 'absolute', left: 8, right: 8, bottom: 8, zIndex: 2 }}
+        >
+          {mapError}
+        </div>
+      )}
+    </div>
+  );
 }

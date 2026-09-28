@@ -16,7 +16,8 @@ export default defineConfig({
         background_color: '#0f2744',
         display: 'standalone',
         orientation: 'portrait-primary',
-        start_url: '/login',
+        // Render Static no reescribe rutas: solo "/" existe; HashRouter maneja el resto.
+        start_url: '/#/pedir',
         scope: '/',
         lang: 'es-AR',
         icons: [
@@ -40,6 +41,9 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
