@@ -12,8 +12,35 @@ export interface MapMarker {
   draggable?: boolean;
 }
 
+export interface MapHeatmap {
+  id: string;
+  points: { lat: number; lng: number }[];
+  /** Color del punto más denso; el degradado va de transparente a este color. */
+  color: string;
+  visible?: boolean;
+}
+
+const HEAT_PREFIX = 'heat-';
+
+function heatmapData(points: MapHeatmap['points']): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: points.map((p) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+    })),
+  };
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 export function MapView({
   markers = [],
+  heatmaps = [],
   center = { lat: -24.7821, lng: -65.4232 },
   zoom = 12,
   followId,
@@ -22,6 +49,7 @@ export function MapView({
   getCenterRef,
 }: {
   markers?: MapMarker[];
+  heatmaps?: MapHeatmap[];
   center?: { lat: number; lng: number };
   zoom?: number;
   /** Si cambia de posición, el mapa hace pan suave hacia ese marcador */
@@ -32,6 +60,7 @@ export function MapView({
   getCenterRef?: MutableRefObject<(() => { lat: number; lng: number } | null) | null>;
 }) {
   const [mapError, setMapError] = useState<string | null>(null);
+  const [styleLoaded, setStyleLoaded] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
@@ -68,6 +97,7 @@ export function MapView({
     map.on('click', handleClick);
     map.on('load', () => {
       setMapError(null);
+      setStyleLoaded(true);
       map.resize();
     });
     map.on('error', (e) => {
@@ -93,6 +123,7 @@ export function MapView({
       markersRef.current.clear();
       map.remove();
       mapRef.current = null;
+      setStyleLoaded(false);
     };
     // Solo recrear al montar / token
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,6 +188,65 @@ export function MapView({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markersKey, followId, token]);
+
+  const heatmapsKey = heatmaps
+    .map(
+      (h) =>
+        `${h.id}:${h.color}:${h.visible === false ? 0 : 1}:${h.points.length}:${h.points
+          .map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`)
+          .join(';')}`,
+    )
+    .join('|');
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleLoaded) return;
+
+    const wanted = new Set(heatmaps.map((h) => HEAT_PREFIX + h.id));
+    for (const layer of map.getStyle().layers ?? []) {
+      if (layer.id.startsWith(HEAT_PREFIX) && !wanted.has(layer.id)) {
+        map.removeLayer(layer.id);
+        if (map.getSource(layer.id)) map.removeSource(layer.id);
+      }
+    }
+
+    for (const h of heatmaps) {
+      const id = HEAT_PREFIX + h.id;
+      const data = heatmapData(h.points);
+      const source = map.getSource(id) as mapboxgl.GeoJSONSource | undefined;
+      if (source) source.setData(data);
+      else map.addSource(id, { type: 'geojson', data });
+
+      if (!map.getLayer(id)) {
+        map.addLayer({
+          id,
+          type: 'heatmap',
+          source: id,
+          paint: {
+            'heatmap-weight': 1,
+            'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 1, 15, 3],
+            'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 15, 15, 40],
+            'heatmap-opacity': 0.75,
+            'heatmap-color': [
+              'interpolate',
+              ['linear'],
+              ['heatmap-density'],
+              0,
+              hexToRgba(h.color, 0),
+              0.2,
+              hexToRgba(h.color, 0.25),
+              0.6,
+              hexToRgba(h.color, 0.6),
+              1,
+              hexToRgba(h.color, 0.95),
+            ],
+          },
+        });
+      }
+      map.setLayoutProperty(id, 'visibility', h.visible === false ? 'none' : 'visible');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heatmapsKey, styleLoaded]);
 
   if (!token) {
     return (

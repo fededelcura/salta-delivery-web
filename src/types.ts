@@ -492,6 +492,24 @@ export interface GananciasPortal {
   [key: string]: unknown;
 }
 
+export interface ConfigAnillos {
+  radios_km: number[];
+  paso_seg: number;
+}
+
+export interface MapaCalor {
+  horas: number;
+  anillos: ConfigAnillos;
+  cadetes: {
+    usuario_id: string;
+    nombre: string;
+    lat: number;
+    lng: number;
+    ubicacion_actualizada_en: string;
+  }[];
+  pedidos: { lat: number; lng: number; estado: string }[];
+}
+
 export interface CalcularTarifaPortal {
   distancia_km: number;
   tiempo_estimado_min: number;

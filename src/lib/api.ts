@@ -1,4 +1,4 @@
-import type { ApiResponse, ApiSuccess } from '../types';
+import type { ApiResponse, ApiSuccess, ConfigAnillos, MapaCalor } from '../types';
 
 const PROD_API = 'https://salta-delivery-api.onrender.com/api';
 
@@ -488,6 +488,13 @@ export const adminApi = {
     api<{ id: string; estado_pago: string }>(`/admin/viajes/${viajeId}/marcar-cobrado`, {
       method: 'POST',
       body: '{}',
+    }),
+  mapaCalor: (horas: number) => api<MapaCalor>(`/admin/mapa-calor?horas=${horas}`),
+  despachoAnillos: () => api<ConfigAnillos>('/admin/despacho/anillos'),
+  setDespachoAnillos: (cfg: ConfigAnillos) =>
+    api<ConfigAnillos>('/admin/despacho/anillos', {
+      method: 'PUT',
+      body: JSON.stringify(cfg),
     }),
   umbralNegocios: () => api<{ monto: number }>('/admin/negocios/umbral'),
   setUmbralNegocios: (monto: number) =>

@@ -155,7 +155,8 @@ export function CadeteViajesPage() {
       <div className="panel panel-pad">
         <h3 style={{ marginTop: 0 }}>Disponibles</h3>
         {disponibles.length === 0 ? (
-          <p className="muted">No hay viajes para tomar. Ponete online desde Estado.</p>
+          <p className="muted">No hay viajes cerca tuyo. Ponete online desde Estado y activá la ubicación: solo ves
+            pedidos dentro de tu zona.</p>
         ) : (
           <div className="table-wrap">
             <table className="data">

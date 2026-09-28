@@ -9,6 +9,7 @@ const groups = [
       { to: '/panel/viajes', label: 'Viajes', icon: 'trip' },
       { to: '/panel/incidencias', label: 'Incidencias', icon: 'alert' },
       { to: '/panel/zonas', label: 'Zonas', icon: 'map' },
+      { to: '/panel/mapa-calor', label: 'Mapa de calor', icon: 'map' },
     ],
   },
   {
@@ -117,6 +118,7 @@ const titles: Record<string, string> = {
   '/panel/viajes': 'Viajes',
   '/panel/incidencias': 'Incidencias',
   '/panel/zonas': 'Zonas',
+  '/panel/mapa-calor': 'Mapa de calor',
   '/panel/cadetes': 'Cadetes',
   '/panel/actividad-cadetes': 'Actividad',
   '/panel/clientes': 'Usuarios',

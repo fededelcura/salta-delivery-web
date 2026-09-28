@@ -43,8 +43,18 @@ export function TarifasPage() {
   const [loadingCom, setLoadingCom] = useState(false);
   const [umbral, setUmbral] = useState<number>(20000);
   const [loadingUmbral, setLoadingUmbral] = useState(false);
+  const [radiosTxt, setRadiosTxt] = useState('3, 6, 10');
+  const [pasoSeg, setPasoSeg] = useState(60);
+  const [loadingAnillos, setLoadingAnillos] = useState(false);
 
   useEffect(() => {
+    void adminApi
+      .despachoAnillos()
+      .then((c) => {
+        setRadiosTxt(c.radios_km.join(', '));
+        setPasoSeg(c.paso_seg);
+      })
+      .catch(() => undefined);
     void adminApi
       .umbralNegocios()
       .then((r) => setUmbral(r.monto))
@@ -114,6 +124,31 @@ export function TarifasPage() {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
       setLoadingUmbral(false);
+    }
+  }
+
+  async function saveAnillos(e: FormEvent) {
+    e.preventDefault();
+    const radios_km = radiosTxt
+      .split(/[,;\s]+/)
+      .map(Number)
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (!radios_km.length) {
+      setError('Ingresá al menos un radio en km (ej. 3, 6, 10)');
+      return;
+    }
+    setLoadingAnillos(true);
+    setError(null);
+    setOk(null);
+    try {
+      const c = await adminApi.setDespachoAnillos({ radios_km, paso_seg: pasoSeg });
+      setRadiosTxt(c.radios_km.join(', '));
+      setPasoSeg(c.paso_seg);
+      setOk('Despacho por zona guardado');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setLoadingAnillos(false);
     }
   }
 
@@ -208,6 +243,39 @@ export function TarifasPage() {
           style={{ alignSelf: 'flex-start' }}
         >
           {loadingUmbral ? 'Guardando…' : 'Guardar umbral'}
+        </button>
+      </form>
+
+      <form className="panel panel-pad stack" style={{ marginTop: '1rem' }} onSubmit={saveAnillos}>
+        <h3 style={{ marginTop: 0 }}>Despacho por zona</h3>
+        <p className="muted" style={{ margin: 0 }}>
+          Cada pedido nuevo se muestra primero a los cadetes dentro del primer radio. Si nadie lo
+          acepta, cada cierto tiempo se amplía al radio siguiente. Los cadetes sin GPS no ven pedidos.
+        </p>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <div className="field" style={{ maxWidth: 260 }}>
+            <label htmlFor="radios">Radios (km, separados por coma)</label>
+            <input id="radios" value={radiosTxt} onChange={(e) => setRadiosTxt(e.target.value)} />
+          </div>
+          <div className="field" style={{ maxWidth: 200 }}>
+            <label htmlFor="paso">Segundos entre anillos</label>
+            <input
+              id="paso"
+              type="number"
+              min={10}
+              max={1800}
+              value={pasoSeg}
+              onChange={(e) => setPasoSeg(Number(e.target.value))}
+            />
+          </div>
+        </div>
+        <button
+          className="btn btn-primary"
+          type="submit"
+          disabled={loadingAnillos}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          {loadingAnillos ? 'Guardando…' : 'Guardar despacho'}
         </button>
       </form>
 

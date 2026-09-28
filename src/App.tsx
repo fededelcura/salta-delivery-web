@@ -18,6 +18,7 @@ import { ViajesPage } from './pages/ViajesPage';
 import { SuscripcionesPage } from './pages/SuscripcionesPage';
 import { TarifasPage } from './pages/TarifasPage';
 import { ZonasPage } from './pages/ZonasPage';
+import { MapaCalorPage } from './pages/MapaCalorPage';
 import { IncidenciasPage } from './pages/IncidenciasPage';
 import { ReportesPage } from './pages/ReportesPage';
 import { ComprobantesPage } from './pages/ComprobantesPage';
@@ -67,6 +68,7 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="cadetes" element={<CadetesPage />} />
             <Route path="actividad-cadetes" element={<ActividadCadetesPage />} />
+            <Route path="mapa-calor" element={<MapaCalorPage />} />
             <Route path="clientes" element={<ClientesPage ambito="usuario" />} />
             <Route path="negocios" element={<ClientesPage ambito="negocio" />} />
             <Route path="viajes" element={<ViajesPage />} />
