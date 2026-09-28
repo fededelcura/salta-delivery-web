@@ -26,6 +26,14 @@ const TIPO_LABEL: Record<string, string> = {
   envio_paquete: 'Paquete',
 };
 
+const METODO_LABEL: Record<string, string> = {
+  cuenta_negocio: 'Cuenta negocio',
+  mercadopago: 'Mercado Pago',
+  efectivo: 'Efectivo',
+  tarjeta: 'Tarjeta',
+  billetera: 'Billetera',
+};
+
 type LivePos = {
   cadete_id: string;
   viaje_id?: string;
@@ -57,7 +65,21 @@ export function ViajesPage() {
   const [despachoMsg, setDespachoMsg] = useState<string | null>(null);
   const [despachoBusy, setDespachoBusy] = useState(false);
 
+  const [cobroBusy, setCobroBusy] = useState(false);
   const TIMEOUT_MS = 5 * 60 * 1000;
+
+  async function marcarCobrado(id: string) {
+    setCobroBusy(true);
+    setError(null);
+    try {
+      await adminApi.marcarCobrado(id);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo marcar cobrado');
+    } finally {
+      setCobroBusy(false);
+    }
+  }
 
   function minutosBuscando(v: ViajeAdmin): number {
     return (Date.now() - new Date(v.fecha_solicitud).getTime()) / 60_000;
@@ -279,6 +301,7 @@ export function ViajesPage() {
                 <th>Origen → Destino</th>
                 <th>Estado</th>
                 <th>Tarifa</th>
+                <th>Paga envío</th>
                 <th>Pago</th>
               </tr>
             </thead>
@@ -327,7 +350,24 @@ export function ViajesPage() {
                     </td>
                     <td>{v.tarifa_final != null ? <Money value={v.tarifa_final} /> : '—'}</td>
                     <td>
-                      {v.metodo_pago} / {v.estado_pago}
+                      {v.importe_pedido != null ? (
+                        <>
+                          <Badge tone={v.pagador_envio === 'negocio' ? 'brand' : 'neutral'}>
+                            {v.pagador_envio === 'negocio' ? 'Negocio' : 'Cliente'}
+                          </Badge>
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            Pedido <Money value={v.importe_pedido} />
+                          </div>
+                        </>
+                      ) : (
+                        <span className="muted">Cliente</span>
+                      )}
+                    </td>
+                    <td>
+                      {METODO_LABEL[v.metodo_pago] ?? v.metodo_pago} /{' '}
+                      <Badge tone={v.estado_pago === 'aprobado' ? 'ok' : 'warn'}>
+                        {v.estado_pago}
+                      </Badge>
                     </td>
                   </tr>
                 );
@@ -379,6 +419,30 @@ export function ViajesPage() {
                   )}
                   {despachoMsg ? (
                     <p style={{ fontSize: 13, marginTop: 6 }}>{despachoMsg}</p>
+                  ) : null}
+                </div>
+              ) : null}
+              {selected.importe_pedido != null ? (
+                <div style={{ marginBottom: 12, fontSize: 14 }}>
+                  <p style={{ margin: '0 0 4px' }}>
+                    Pedido de negocio · importe <Money value={selected.importe_pedido} /> · envío
+                    lo paga <strong>{selected.pagador_envio === 'negocio' ? 'el negocio' : 'el cliente'}</strong>
+                  </p>
+                  {selected.destinatario_nombre ? (
+                    <p className="muted" style={{ margin: '0 0 4px' }}>
+                      Recibe: {selected.destinatario_nombre}
+                      {selected.destinatario_telefono ? ` · ${selected.destinatario_telefono}` : ''}
+                    </p>
+                  ) : null}
+                  {selected.estado_pago !== 'aprobado' && selected.estado !== 'cancelado' ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={cobroBusy}
+                      onClick={() => void marcarCobrado(selected.id)}
+                    >
+                      {cobroBusy ? 'Guardando…' : 'Marcar cobrado'}
+                    </button>
                   ) : null}
                 </div>
               ) : null}

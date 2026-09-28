@@ -286,6 +286,7 @@ export const adminApi = {
     tipo_cuenta?: 'particular' | 'restaurante' | 'comercio';
     tiempo_preparacion_min?: number;
     horario_comercial?: { abre?: string; cierra?: string; dias?: number[] } | null;
+    umbral_envio_negocio?: number | null;
     documento_dni: string;
   }) =>
     api<import('../types').ClienteAdmin>('/admin/clientes', {
@@ -303,6 +304,7 @@ export const adminApi = {
       tipo_cuenta?: 'particular' | 'restaurante' | 'comercio';
       tiempo_preparacion_min?: number;
       horario_comercial?: { abre?: string; cierra?: string; dias?: number[] } | null;
+      umbral_envio_negocio?: number | null;
       direccion_parts?: {
         calle: string;
         numero: string;
@@ -480,6 +482,30 @@ export const adminApi = {
       method: 'PUT',
       body: JSON.stringify({ dias }),
     }),
+  cuentaNegocio: (clienteId: string) =>
+    api<import('../types').CuentaNegocio>(`/admin/negocios/${clienteId}/cuenta`),
+  marcarCobrado: (viajeId: string) =>
+    api<{ id: string; estado_pago: string }>(`/admin/viajes/${viajeId}/marcar-cobrado`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  umbralNegocios: () => api<{ monto: number }>('/admin/negocios/umbral'),
+  setUmbralNegocios: (monto: number) =>
+    api<{ monto: number }>('/admin/negocios/umbral', {
+      method: 'PUT',
+      body: JSON.stringify({ monto }),
+    }),
+};
+
+/** Link público de pago del envío (sin login). */
+export const pagoEnvioApi = {
+  resumen: (token: string) =>
+    api<import('../types').PagoEnvioResumen>(`/pagos/viaje/${encodeURIComponent(token)}`),
+  mercadopago: (token: string) =>
+    api<{ init_point: string }>(`/pagos/viaje/${encodeURIComponent(token)}/mercadopago`, {
+      method: 'POST',
+      body: '{}',
+    }),
 };
 
 export const suscripcionesApi = {
@@ -516,6 +542,9 @@ export const clientePortalApi = {
     destino: { lat: number; lng: number };
     metodo_pago: string;
     tiempo_preparacion_min?: number;
+    importe_pedido?: number;
+    destinatario_nombre?: string;
+    destinatario_telefono?: string;
   }) =>
     api<import('../types').ViajePortal>('/clientes/solicitar-viaje', {
       method: 'POST',
@@ -547,6 +576,8 @@ export const clientePortalApi = {
       method: 'POST',
       body: JSON.stringify({ motivo }),
     }),
+  umbralNegocio: () =>
+    api<{ umbral: number; origen: 'negocio' | 'global' }>('/clientes/negocio/umbral'),
   calcularTarifa: (origen: { lat: number; lng: number }, destino: { lat: number; lng: number }) =>
     api<import('../types').CalcularTarifaPortal>('/viajes/calcular-tarifa', {
       method: 'POST',

@@ -121,6 +121,24 @@ export function CadeteViajesPage() {
             <Badge tone="warn">{activo.estado}</Badge> ·{' '}
             <Money value={activo.tarifa_final ?? activo.tarifa_estimada ?? 0} />
           </p>
+          {activo.destinatario_nombre ? (
+            <p style={{ margin: '0 0 8px' }}>
+              Entregar a <strong>{activo.destinatario_nombre}</strong>
+              {activo.destinatario_telefono ? (
+                <>
+                  {' · '}
+                  <a href={`tel:${activo.destinatario_telefono}`}>{activo.destinatario_telefono}</a>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          <p style={{ margin: '0 0 12px' }}>
+            {activo.metodo_pago === 'efectivo' ? (
+              <Badge tone="warn">Cobrar en efectivo</Badge>
+            ) : (
+              <Badge tone="ok">No cobrar: pagado por la app</Badge>
+            )}
+          </p>
           {NEXT[activo.estado] ? (
             <button
               type="button"
@@ -154,6 +172,9 @@ export function CadeteViajesPage() {
                     <td>
                       <div style={{ fontWeight: 600 }}>{v.origen_direccion}</div>
                       <div className="muted">{v.destino_direccion}</div>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {v.metodo_pago === 'efectivo' ? 'Cobrar en efectivo' : 'Pagado por la app'}
+                      </div>
                     </td>
                     <td>
                       <Money value={v.tarifa_final ?? v.tarifa_estimada ?? 0} />

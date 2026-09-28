@@ -41,8 +41,14 @@ export function TarifasPage() {
   const [ok, setOk] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCom, setLoadingCom] = useState(false);
+  const [umbral, setUmbral] = useState<number>(20000);
+  const [loadingUmbral, setLoadingUmbral] = useState(false);
 
   useEffect(() => {
+    void adminApi
+      .umbralNegocios()
+      .then((r) => setUmbral(r.monto))
+      .catch(() => undefined);
     void adminApi
       .getTarifas()
       .then((data) => setForm({ ...DEFAULTS, ...data }))
@@ -92,6 +98,22 @@ export function TarifasPage() {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
       setLoadingCom(false);
+    }
+  }
+
+  async function saveUmbral(e: FormEvent) {
+    e.preventDefault();
+    setLoadingUmbral(true);
+    setError(null);
+    setOk(null);
+    try {
+      const r = await adminApi.setUmbralNegocios(umbral);
+      setUmbral(r.monto);
+      setOk('Umbral de envío de negocios guardado');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setLoadingUmbral(false);
     }
   }
 
@@ -161,6 +183,33 @@ export function TarifasPage() {
           ) : null}
         </div>
       </div>
+
+      <form className="panel panel-pad stack" style={{ marginTop: '1rem' }} onSubmit={saveUmbral}>
+        <h3 style={{ marginTop: 0 }}>Envío en pedidos de negocios</h3>
+        <p className="muted" style={{ margin: 0 }}>
+          Si el importe del pedido es igual o mayor a este monto, el envío lo paga el negocio
+          (cuenta corriente). Si es menor, lo paga el cliente por link de pago. Cada negocio puede
+          tener su propio monto en Negocios; si no, se usa este.
+        </p>
+        <div className="field" style={{ maxWidth: 260 }}>
+          <label htmlFor="umbral">Umbral global (ARS)</label>
+          <input
+            id="umbral"
+            type="number"
+            min={0}
+            value={umbral}
+            onChange={(e) => setUmbral(Number(e.target.value))}
+          />
+        </div>
+        <button
+          className="btn btn-primary"
+          type="submit"
+          disabled={loadingUmbral}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          {loadingUmbral ? 'Guardando…' : 'Guardar umbral'}
+        </button>
+      </form>
 
       <div className="panel panel-pad" style={{ marginTop: '1rem' }}>
         <h3 style={{ marginTop: 0 }}>Tarifa dinámica (automática)</h3>

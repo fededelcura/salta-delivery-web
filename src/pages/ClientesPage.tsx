@@ -7,7 +7,7 @@ import {
   TIPOS_NEGOCIO,
   type TipoCuentaCliente,
 } from '../lib/perfilesCuenta';
-import type { ClienteAdmin, ClienteDetalleAdmin } from '../types';
+import type { ClienteAdmin, ClienteDetalleAdmin, CuentaNegocio } from '../types';
 import { Badge, ErrorBox, Loading, Money, PageHeader } from '../components/ui';
 
 type ClienteFormState = {
@@ -22,7 +22,17 @@ type ClienteFormState = {
   tiempo_preparacion_min: number;
   horario_abre: string;
   horario_cierra: string;
+  /** Vacío = usa el umbral global (Tarifas). */
+  umbral_envio: string;
 };
+
+function parseUmbral(v: string): number | null {
+  const t = v.trim().replace(',', '.');
+  if (!t) return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) throw new Error('El umbral de envío debe ser un monto válido');
+  return n;
+}
 
 function makeEmptyForm(ambito: 'usuario' | 'negocio'): ClienteFormState {
   const tipo: TipoCuentaCliente = ambito === 'negocio' ? 'restaurante' : 'particular';
@@ -38,6 +48,7 @@ function makeEmptyForm(ambito: 'usuario' | 'negocio'): ClienteFormState {
     tiempo_preparacion_min: PERFILES_CUENTA[tipo].prep_default_min,
     horario_abre: '09:00',
     horario_cierra: '22:00',
+    umbral_envio: '',
   };
 }
 
@@ -66,6 +77,7 @@ function makeEditFormFromCliente(c: ClienteAdmin): ClienteEditFormState {
     tiempo_preparacion_min: c.tiempo_preparacion_min ?? PERFILES_CUENTA[tipo].prep_default_min,
     horario_abre: c.horario_comercial?.abre ?? '09:00',
     horario_cierra: c.horario_comercial?.cierra ?? '22:00',
+    umbral_envio: c.umbral_envio_negocio != null ? String(c.umbral_envio_negocio) : '',
     direccion_parts: clienteDireccionParts(c),
   };
 }
@@ -105,6 +117,7 @@ export function ClientesPage({ ambito = 'usuario' }: { ambito?: 'usuario' | 'neg
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [cuenta, setCuenta] = useState<CuentaNegocio | null>(null);
 
   useEffect(() => {
     setForm(makeEmptyForm(ambito));
@@ -127,11 +140,38 @@ export function ClientesPage({ ambito = 'usuario' }: { ambito?: 'usuario' | 'neg
     void load();
   }, [load]);
 
+  async function refreshCuenta(id: string) {
+    try {
+      setCuenta(await adminApi.cuentaNegocio(id));
+    } catch {
+      setCuenta(null);
+    }
+  }
+
+  async function marcarCobrado(viajeId: string) {
+    if (!detalle) return;
+    setActionBusy(true);
+    setError(null);
+    try {
+      await adminApi.marcarCobrado(viajeId);
+      await refreshCuenta(detalle.cliente.usuario_id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo marcar cobrado');
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   async function refreshDetalle(id: string) {
     setDetalleLoading(true);
     try {
       const d = await adminApi.detalleCliente(id);
       setDetalle(d);
+      if (esNegocio(d.cliente.tipo_cuenta)) {
+        void refreshCuenta(id);
+      } else {
+        setCuenta(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar detalle');
     } finally {
@@ -178,6 +218,7 @@ export function ClientesPage({ ambito = 'usuario' }: { ambito?: 'usuario' | 'neg
         horario_comercial: esAmbitoNegocio
           ? { abre: form.horario_abre, cierra: form.horario_cierra }
           : null,
+        umbral_envio_negocio: esAmbitoNegocio ? parseUmbral(form.umbral_envio) : null,
         direccion_parts: {
           ...form.direccion_parts,
           piso_dpto: form.direccion_parts.piso_dpto || null,
@@ -227,6 +268,7 @@ export function ClientesPage({ ambito = 'usuario' }: { ambito?: 'usuario' | 'neg
         horario_comercial: esAmbitoNegocio
           ? { abre: editForm.horario_abre, cierra: editForm.horario_cierra }
           : null,
+        umbral_envio_negocio: esAmbitoNegocio ? parseUmbral(editForm.umbral_envio) : null,
         direccion_parts: {
           ...editForm.direccion_parts,
           piso_dpto: editForm.direccion_parts.piso_dpto || null,
@@ -497,6 +539,15 @@ export function ClientesPage({ ambito = 'usuario' }: { ambito?: 'usuario' | 'neg
                 </strong>
                 {' · '}
                 Prep. default: <strong>{detalle.cliente.tiempo_preparacion_min ?? 0} min</strong>
+                {' · '}
+                Paga envío desde:{' '}
+                <strong>
+                  {detalle.cliente.umbral_envio_negocio != null ? (
+                    <Money value={detalle.cliente.umbral_envio_negocio} />
+                  ) : (
+                    'umbral global'
+                  )}
+                </strong>
               </>
             ) : (
               <>
@@ -601,6 +652,60 @@ export function ClientesPage({ ambito = 'usuario' }: { ambito?: 'usuario' | 'neg
               </table>
             </div>
           </div>
+          {esNegocio(detalle.cliente.tipo_cuenta) && cuenta ? (
+            <div style={{ marginTop: '1rem' }}>
+              <h4>
+                Cuenta corriente · envíos a cobrar: <Money value={cuenta.total_pendiente} />
+              </h4>
+              {cuenta.envios.length === 0 ? (
+                <p className="muted">Sin envíos pendientes de cobro.</p>
+              ) : (
+                <div className="table-wrap">
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Recibe</th>
+                        <th>Destino</th>
+                        <th>Pedido</th>
+                        <th>Envío</th>
+                        <th>Estado</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cuenta.envios.map((e) => (
+                        <tr key={e.id}>
+                          <td className="mono">
+                            {new Date(e.fecha_solicitud).toLocaleString('es-AR')}
+                          </td>
+                          <td>{e.destinatario_nombre ?? '—'}</td>
+                          <td>{e.destino_direccion}</td>
+                          <td>
+                            {e.importe_pedido != null ? <Money value={e.importe_pedido} /> : '—'}
+                          </td>
+                          <td>
+                            <Money value={e.monto} />
+                          </td>
+                          <td>{e.estado}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={actionBusy}
+                              onClick={() => void marcarCobrado(e.id)}
+                            >
+                              Marcar cobrado
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -695,6 +800,15 @@ export function ClientesPage({ ambito = 'usuario' }: { ambito?: 'usuario' | 'neg
                       type="time"
                       value={form.horario_cierra}
                       onChange={(e) => setForm({ ...form, horario_cierra: e.target.value })}
+                    />
+                  </div>
+                  <div className="field full">
+                    <label>Paga el envío desde ($)</label>
+                    <input
+                      inputMode="decimal"
+                      placeholder="Vacío = umbral global de Tarifas"
+                      value={form.umbral_envio}
+                      onChange={(e) => setForm({ ...form, umbral_envio: e.target.value })}
                     />
                   </div>
                 </>
@@ -964,6 +1078,15 @@ export function ClientesPage({ ambito = 'usuario' }: { ambito?: 'usuario' | 'neg
                       type="time"
                       value={editForm.horario_cierra}
                       onChange={(e) => setEditForm({ ...editForm, horario_cierra: e.target.value })}
+                    />
+                  </div>
+                  <div className="field full">
+                    <label>Paga el envío desde ($)</label>
+                    <input
+                      inputMode="decimal"
+                      placeholder="Vacío = umbral global de Tarifas"
+                      value={editForm.umbral_envio}
+                      onChange={(e) => setEditForm({ ...editForm, umbral_envio: e.target.value })}
                     />
                   </div>
                 </>

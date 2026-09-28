@@ -109,6 +109,7 @@ export interface ClienteAdmin {
   tipo_cuenta?: 'particular' | 'restaurante' | 'comercio';
   tiempo_preparacion_min?: number;
   horario_comercial?: { abre?: string; cierra?: string; dias?: number[] } | null;
+  umbral_envio_negocio?: number | null;
   estado_suscripcion: string;
   viajes_realizados: number;
   calificacion_promedio: number;
@@ -253,6 +254,38 @@ export interface ViajeAdmin {
   estado_pago: string;
   origen?: { lat: number; lng: number };
   destino?: { lat: number; lng: number };
+  importe_pedido?: number | null;
+  pagador_envio?: PagadorEnvio;
+  destinatario_nombre?: string | null;
+  destinatario_telefono?: string | null;
+}
+
+export type PagadorEnvio = 'cliente' | 'negocio';
+
+export interface CuentaNegocio {
+  envios: Array<{
+    id: string;
+    fecha_solicitud: string;
+    destino_direccion: string;
+    destinatario_nombre: string | null;
+    importe_pedido: number | null;
+    monto: number;
+    estado: string;
+    estado_pago: string;
+  }>;
+  total_pendiente: number;
+}
+
+export interface PagoEnvioResumen {
+  viaje_id: string;
+  negocio: string;
+  destino_direccion: string;
+  destinatario_nombre: string | null;
+  monto: number;
+  estado_viaje: string;
+  estado_pago: string;
+  fecha_solicitud: string;
+  pago_disponible: boolean;
 }
 
 export interface Incidencia {
@@ -412,6 +445,12 @@ export interface ViajePortal {
   fecha_solicitud: string;
   metodo_pago: string;
   estado_pago: string;
+  importe_pedido?: number | null;
+  pagador_envio?: PagadorEnvio;
+  destinatario_nombre?: string | null;
+  destinatario_telefono?: string | null;
+  pago_token?: string | null;
+  umbral_aplicado?: number | null;
 }
 
 export interface ClientePortalPerfil {
@@ -419,6 +458,7 @@ export interface ClientePortalPerfil {
   dni?: string;
   plan_suscripcion?: string;
   tipo_cuenta?: string;
+  umbral_envio_negocio?: number | null;
   metodo_pago_preferido?: string;
   direcciones_favoritas?: Array<{
     alias: string;

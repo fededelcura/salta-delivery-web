@@ -4,6 +4,8 @@ import { useAuth } from '../auth/AuthContext';
 import { MapView } from '../components/MapView';
 import { ErrorBox, Money, PageHeader } from '../components/ui';
 import { ApiClientError, clientePortalApi, getToken, pingHealth } from '../lib/api';
+import { linkPagoEnvio, whatsappPagoUrl } from '../lib/pago-link';
+import type { ViajePortal } from '../types';
 import {
   getCurrentPosition,
   isInCoverage,
@@ -88,6 +90,15 @@ const suggestListStyle: CSSProperties = {
   overflow: 'hidden',
 };
 
+const avisoStyle: CSSProperties = {
+  margin: 0,
+  display: 'block',
+  borderRadius: 10,
+  padding: '8px 12px',
+  fontSize: '0.85rem',
+  whiteSpace: 'normal',
+};
+
 const suggestBtnStyle: CSSProperties = {
   width: '100%',
   textAlign: 'left',
@@ -167,6 +178,13 @@ export function PedirPage() {
   const [gpsHint, setGpsHint] = useState<string | null>(
     'Elegí origen y destino. Si no tenés cuenta, completá nombre y teléfono abajo para confirmar.',
   );
+  const [esNegocio, setEsNegocio] = useState(false);
+  const [umbral, setUmbral] = useState<number | null>(null);
+  const [importe, setImporte] = useState('');
+  const [destNombre, setDestNombre] = useState('');
+  const [destTelefono, setDestTelefono] = useState('');
+  const [pedidoNegocio, setPedidoNegocio] = useState<ViajePortal | null>(null);
+  const [copiado, setCopiado] = useState(false);
   const [mapTarget, setMapTarget] = useState<'origen' | 'destino'>('origen');
   const origenTimer = useRef<number | null>(null);
   const destinoTimer = useRef<number | null>(null);
@@ -208,6 +226,13 @@ export function PedirPage() {
         setFavoritos(p.direcciones_favoritas ?? []);
         if (!nombre && p.nombre) setNombre(p.nombre);
         if (!telefono && p.telefono) setTelefono(p.telefono);
+        if (p.tipo_cuenta === 'restaurante' || p.tipo_cuenta === 'comercio') {
+          setEsNegocio(true);
+          void clientePortalApi
+            .umbralNegocio()
+            .then((u) => setUmbral(u.umbral))
+            .catch(() => setUmbral(null));
+        }
       })
       .catch((e) => {
         if (isBearerOrUnauthorized(e)) {
@@ -507,13 +532,26 @@ export function PedirPage() {
       }
     }
 
+    const modoNegocio = hasAuth && esNegocio;
+    const importeNum = Number(importe.replace(',', '.'));
+    if (modoNegocio) {
+      if (!Number.isFinite(importeNum) || importeNum <= 0) {
+        setError('Ingresá el importe del pedido.');
+        return;
+      }
+      if (!destNombre.trim() || destTelefono.replace(/\D/g, '').length < 8) {
+        setError('Completá nombre y teléfono (mín. 8 dígitos) de quien recibe el pedido.');
+        return;
+      }
+    }
+
     const payloadBase = {
       tipo_servicio: tipo,
       origen_direccion: buildDireccion(origen, origenNumero, origenPiso, origenDpto),
       origen: { lat: origen.lat, lng: origen.lng },
       destino_direccion: buildDireccion(destino, destinoNumero, destinoPiso, destinoDpto),
       destino: { lat: destino.lat, lng: destino.lng },
-      metodo_pago: pago,
+      metodo_pago: modoNegocio ? 'mercadopago' : pago,
     };
 
     setBusy(true);
@@ -521,6 +559,18 @@ export function PedirPage() {
     try {
       if (hasAuth && getToken()) {
         try {
+          if (modoNegocio) {
+            const viaje = await clientePortalApi.solicitar({
+              ...payloadBase,
+              importe_pedido: importeNum,
+              destinatario_nombre: destNombre.trim(),
+              destinatario_telefono: destTelefono.replace(/\D/g, ''),
+            });
+            setCopiado(false);
+            setPedidoNegocio(viaje);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+          }
           await clientePortalApi.solicitar(payloadBase);
           navigate('/app', { replace: true });
           return;
@@ -574,6 +624,97 @@ export function PedirPage() {
   ];
 
   const mapboxOk = Boolean(import.meta.env.VITE_MAPBOX_TOKEN);
+  const modoNegocio = hasAuth && esNegocio;
+  const importeVista = Number(importe.replace(',', '.'));
+  const importeValido = Number.isFinite(importeVista) && importeVista > 0;
+  const pagaNegocio = importeValido && umbral != null && importeVista >= umbral;
+
+  if (pedidoNegocio) {
+    const link = pedidoNegocio.pago_token ? linkPagoEnvio(pedidoNegocio.pago_token) : null;
+    const monto = pedidoNegocio.tarifa_final ?? pedidoNegocio.tarifa_estimada ?? 0;
+    return (
+      <div className="page-enter" style={{ maxWidth: 720, margin: '0 auto', padding: '1rem' }}>
+        <PageHeader title="Pedido confirmado" subtitle="Ya estamos buscando un cadete" />
+        <div className="panel panel-pad stack" style={{ maxWidth: 520 }}>
+          <p style={{ margin: 0 }}>
+            Envío a <strong>{pedidoNegocio.destinatario_nombre ?? 'cliente'}</strong> ·{' '}
+            {pedidoNegocio.destino_direccion}
+          </p>
+          <p style={{ margin: 0 }}>
+            Importe del pedido: <Money value={pedidoNegocio.importe_pedido ?? 0} /> · Envío:{' '}
+            <Money value={monto} />
+          </p>
+          {pedidoNegocio.pagador_envio === 'negocio' ? (
+            <p className="badge ok" style={avisoStyle}>
+              El envío lo paga tu negocio: se suma a tu cuenta corriente.
+            </p>
+          ) : (
+            <>
+              <p className="badge warn" style={avisoStyle}>
+                El envío lo paga el cliente. Mandale este link para que pague por la app:
+              </p>
+              {link ? (
+                <>
+                  <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(link).then(() => setCopiado(true));
+                      }}
+                    >
+                      {copiado ? 'Copiado ✓' : 'Copiar link'}
+                    </button>
+                    {pedidoNegocio.destinatario_telefono ? (
+                      <a
+                        className="btn btn-primary"
+                        href={whatsappPagoUrl(
+                          pedidoNegocio.destinatario_telefono,
+                          link,
+                          session?.usuario.nombre,
+                        )}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Enviar por WhatsApp
+                      </a>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+            </>
+          )}
+          <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+            El cadete no cobra nada en la puerta: todo se paga por la app.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setPedidoNegocio(null);
+                setImporte('');
+                setDestNombre('');
+                setDestTelefono('');
+                setDestino(null);
+                setDestinoQuery('');
+                setDestinoNumero('');
+                setDestinoPiso('');
+                setDestinoDpto('');
+                setDestinoLocked(false);
+              }}
+            >
+              Nuevo pedido
+            </button>
+            <Link className="btn btn-ghost" to="/app">
+              Ver en Mi app
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-enter" style={{ maxWidth: 720, margin: '0 auto', padding: '1rem' }}>
@@ -817,14 +958,61 @@ export function PedirPage() {
               <option value="envio_paquete">Paquete</option>
             </select>
           </div>
-          <div className="field">
-            <label>Pago</label>
-            <select value={pago} onChange={(e) => setPago(e.target.value)}>
-              <option value="efectivo">Efectivo</option>
-              <option value="mercadopago">Mercado Pago</option>
-              <option value="tarjeta">Tarjeta</option>
-            </select>
-          </div>
+          {modoNegocio ? (
+            <>
+              <div className="field">
+                <label>Importe del pedido ($)</label>
+                <input
+                  value={importe}
+                  onChange={(e) => setImporte(e.target.value)}
+                  placeholder="Ej. 25000"
+                  inputMode="decimal"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="field">
+                <label>Nombre de quien recibe</label>
+                <input
+                  value={destNombre}
+                  onChange={(e) => setDestNombre(e.target.value)}
+                  placeholder="Ej. Juan Pérez"
+                  autoComplete="off"
+                  maxLength={120}
+                />
+              </div>
+              <div className="field">
+                <label>Teléfono de quien recibe</label>
+                <input
+                  value={destTelefono}
+                  onChange={(e) => setDestTelefono(e.target.value)}
+                  placeholder="Ej. 3875123456"
+                  inputMode="tel"
+                  autoComplete="off"
+                />
+              </div>
+              {umbral != null ? (
+                <p
+                  className={`badge ${pagaNegocio ? 'ok' : 'warn'}`}
+                  style={avisoStyle}
+                >
+                  {!importeValido
+                    ? `Pedidos desde $${umbral.toLocaleString('es-AR')}: el envío lo paga tu negocio. Debajo, lo paga el cliente.`
+                    : pagaNegocio
+                      ? 'El envío lo paga tu negocio (cuenta corriente).'
+                      : 'El envío lo paga el cliente: te damos un link de pago para mandarle por WhatsApp.'}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <div className="field">
+              <label>Pago</label>
+              <select value={pago} onChange={(e) => setPago(e.target.value)}>
+                <option value="efectivo">Efectivo</option>
+                <option value="mercadopago">Mercado Pago</option>
+                <option value="tarjeta">Tarjeta</option>
+              </select>
+            </div>
+          )}
 
           {preview ? (
             <p className="muted">
