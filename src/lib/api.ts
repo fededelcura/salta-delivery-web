@@ -46,15 +46,30 @@ export function setToken(token: string | null): void {
   else localStorage.removeItem('sd_token');
 }
 
-export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+/** Render free duerme la API: el primer request puede tardar ~1 min en despertarla. */
+const DEFAULT_TIMEOUT_GET_MS = 45_000;
+const DEFAULT_TIMEOUT_WRITE_MS = 60_000;
+export const TIMEOUT_SOLICITAR_MS = 90_000;
+
+type ApiOptions = RequestInit & { timeoutMs?: number };
+
+/** Despierta la API sin esperar respuesta (Render free). */
+export function pingHealth(): void {
+  void fetch(`${API_URL}/health`, { cache: 'no-store' }).catch(() => undefined);
+}
+
+export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
   return (await apiWithMeta<T>(path, options)).data;
 }
 
 /** Igual que `api` pero conserva `meta` (paginación: total, next_cursor). */
 export async function apiWithMeta<T>(
   path: string,
-  options: RequestInit = {},
+  { timeoutMs, ...options }: ApiOptions = {},
 ): Promise<ApiSuccess<T>> {
+  const method = (options.method ?? 'GET').toUpperCase();
+  const timeout =
+    timeoutMs ?? (method === 'GET' ? DEFAULT_TIMEOUT_GET_MS : DEFAULT_TIMEOUT_WRITE_MS);
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
   const token = getToken();
@@ -66,23 +81,45 @@ export async function apiWithMeta<T>(
   }
 
   let res: Response | null = null;
+  let timedOut = false;
   for (const base of urls) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeout);
     try {
       res = await fetch(`${base}${path}`, {
         ...options,
         headers,
+        signal: controller.signal,
       });
       break;
     } catch {
+      if (controller.signal.aborted) {
+        timedOut = true;
+        break;
+      }
       /* probar siguiente base */
+    } finally {
+      window.clearTimeout(timer);
     }
+  }
+
+  if (timedOut) {
+    throw new ApiClientError(
+      0,
+      'TIMEOUT',
+      method === 'GET'
+        ? 'El servidor tardó demasiado en responder. Probá de nuevo en unos segundos.'
+        : 'El servidor no respondió. Revisá "Mi app" antes de reintentar: el pedido pudo haberse creado.',
+    );
   }
 
   if (!res) {
     throw new ApiClientError(
       0,
       'NETWORK_ERROR',
-      'No se pudo conectar con la API. Abrí http://127.0.0.1:5174 (no otro host) y asegurate que la API esté en el puerto 3000 (cd api && npm run dev).',
+      import.meta.env.DEV
+        ? 'No se pudo conectar con la API. Abrí http://127.0.0.1:5174 (no otro host) y asegurate que la API esté en el puerto 3000 (cd api && npm run dev).'
+        : 'Sin conexión con el servidor. Revisá tu internet y probá de nuevo.',
     );
   }
 
@@ -483,6 +520,7 @@ export const clientePortalApi = {
     api<import('../types').ViajePortal>('/clientes/solicitar-viaje', {
       method: 'POST',
       body: JSON.stringify(payload),
+      timeoutMs: TIMEOUT_SOLICITAR_MS,
     }),
   solicitarInvitado: (payload: {
     telefono: string;
@@ -502,6 +540,7 @@ export const clientePortalApi = {
     }>('/clientes/solicitar-invitado', {
       method: 'POST',
       body: JSON.stringify(payload),
+      timeoutMs: TIMEOUT_SOLICITAR_MS,
     }),
   cancelar: (id: string, motivo?: string) =>
     api<import('../types').ViajePortal>(`/clientes/cancelar-viaje/${id}`, {

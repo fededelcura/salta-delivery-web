@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { MapView } from '../components/MapView';
 import { ErrorBox, Money, PageHeader } from '../components/ui';
-import { ApiClientError, clientePortalApi, getToken } from '../lib/api';
+import { ApiClientError, clientePortalApi, getToken, pingHealth } from '../lib/api';
 import {
   getCurrentPosition,
   isInCoverage,
@@ -170,6 +170,29 @@ export function PedirPage() {
   const [mapTarget, setMapTarget] = useState<'origen' | 'destino'>('origen');
   const origenTimer = useRef<number | null>(null);
   const destinoTimer = useRef<number | null>(null);
+  const submitErrorRef = useRef<HTMLDivElement>(null);
+  const [slowSubmit, setSlowSubmit] = useState(false);
+
+  useEffect(() => {
+    pingHealth();
+  }, []);
+
+  useEffect(() => {
+    if (!busy) {
+      setSlowSubmit(false);
+      return;
+    }
+    const id = window.setTimeout(() => setSlowSubmit(true), 5000);
+    return () => window.clearTimeout(id);
+  }, [busy]);
+
+  const scrollToErrorRef = useRef(false);
+  useEffect(() => {
+    if (error && scrollToErrorRef.current) {
+      scrollToErrorRef.current = false;
+      submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [error]);
 
   useEffect(() => {
     if (session?.usuario.rol === 'cliente' && !getToken()) {
@@ -453,6 +476,7 @@ export function PedirPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    scrollToErrorRef.current = true;
     if (!origen || !destino) {
       setError(
         'Falta origen o destino: buscá una dirección de la lista, tocá el mapa o arrastrá el pin.',
@@ -609,7 +633,7 @@ export function PedirPage() {
         />
       </div>
 
-      <form className="panel panel-pad" onSubmit={(e) => void onSubmit(e)}>
+      <form className="panel panel-pad" noValidate onSubmit={(e) => void onSubmit(e)}>
         <div className="stack" style={{ maxWidth: 520 }}>
           <div className="field">
             <label>Origen</label>
@@ -819,7 +843,7 @@ export function PedirPage() {
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
                   placeholder="Cómo te llamás"
-                  required
+                  autoComplete="name"
                 />
               </div>
               <div className="field">
@@ -829,7 +853,7 @@ export function PedirPage() {
                   onChange={(e) => setTelefono(e.target.value)}
                   placeholder="Ej. 3875123456"
                   inputMode="tel"
-                  required
+                  autoComplete="tel"
                 />
               </div>
               <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
@@ -846,6 +870,17 @@ export function PedirPage() {
                 : !origen
                   ? 'Falta fijar el origen.'
                   : 'Falta fijar el destino.'}
+            </p>
+          ) : null}
+
+          {error ? (
+            <div ref={submitErrorRef}>
+              <ErrorBox message={error} />
+            </div>
+          ) : null}
+          {busy && slowSubmit ? (
+            <p className="muted" style={{ margin: 0 }}>
+              Despertando el servidor, puede tardar hasta 1 minuto… No cierres la app.
             </p>
           ) : null}
 
