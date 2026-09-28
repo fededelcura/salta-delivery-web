@@ -5,6 +5,7 @@ export interface ApiSuccess<T> {
     page?: number;
     pageSize?: number;
     total?: number;
+    next_cursor?: string | null;
   };
 }
 

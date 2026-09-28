@@ -12,14 +12,33 @@ function toneEstado(e: string) {
 export function ClienteHistorialPage() {
   const [viajes, setViajes] = useState<ViajePortal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
     clientePortalApi
-      .viajes()
-      .then(setViajes)
+      .viajesPagina()
+      .then((r) => {
+        setViajes(r.data);
+        setNextCursor(r.meta?.next_cursor ?? null);
+      })
       .catch((e: Error) => setError(e.message));
   }, []);
+
+  async function verMas() {
+    if (!nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const r = await clientePortalApi.viajesPagina(nextCursor);
+      setViajes((prev) => [...(prev ?? []), ...r.data]);
+      setNextCursor(r.meta?.next_cursor ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo cargar más');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -76,6 +95,18 @@ export function ClienteHistorialPage() {
             </tbody>
           </table>
         )}
+        {nextCursor ? (
+          <div className="panel-pad" style={{ textAlign: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={loadingMore}
+              onClick={() => void verMas()}
+            >
+              {loadingMore ? 'Cargando…' : 'Ver más'}
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

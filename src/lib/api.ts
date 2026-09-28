@@ -1,4 +1,4 @@
-import type { ApiResponse } from '../types';
+import type { ApiResponse, ApiSuccess } from '../types';
 
 const PROD_API = 'https://salta-delivery-api.onrender.com/api';
 
@@ -46,10 +46,15 @@ export function setToken(token: string | null): void {
   else localStorage.removeItem('sd_token');
 }
 
-export async function api<T>(
+export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return (await apiWithMeta<T>(path, options)).data;
+}
+
+/** Igual que `api` pero conserva `meta` (paginación: total, next_cursor). */
+export async function apiWithMeta<T>(
   path: string,
   options: RequestInit = {},
-): Promise<T> {
+): Promise<ApiSuccess<T>> {
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
   const token = getToken();
@@ -102,7 +107,7 @@ export async function api<T>(
     );
   }
 
-  return body.data;
+  return body;
 }
 
 export const authApi = {
@@ -462,6 +467,10 @@ export const clientePortalApi = {
       body: JSON.stringify(payload),
     }),
   viajes: () => api<import('../types').ViajePortal[]>('/clientes/viajes'),
+  viajesPagina: (cursor?: string | null, limit = 20) =>
+    apiWithMeta<import('../types').ViajePortal[]>(
+      `/clientes/viajes?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+    ),
   solicitar: (payload: {
     tipo_servicio: string;
     origen_direccion: string;
