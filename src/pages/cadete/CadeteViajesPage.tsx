@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
-import { cadetePortalApi } from '../../lib/api';
+import { cadetePortalApi, getToken } from '../../lib/api';
+import { connectSocket, type ViajeNuevoEvent } from '../../lib/socket';
+import { avisarViajeNuevo, permisoNotificaciones, pedirPermiso } from '../../lib/avisos';
 import type { ViajePortal } from '../../types';
 import { Badge, ErrorBox, Loading, Money, PageHeader } from '../../components/ui';
 
@@ -20,6 +22,14 @@ const LABEL: Record<string, string> = {
   finalizado: 'Finalizar entrega',
 };
 
+const ESTADO_LABEL: Record<string, string> = {
+  asignado: 'Asignado',
+  cadete_en_camino: 'En camino al origen',
+  cadete_llego: 'En el origen',
+  en_curso: 'En viaje',
+  finalizado: 'Finalizado',
+};
+
 const ACTIVOS = new Set(['asignado', 'cadete_en_camino', 'cadete_llego', 'en_curso']);
 
 export function CadeteViajesPage() {
@@ -29,6 +39,17 @@ export function CadeteViajesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permiso, setPermiso] = useState(permisoNotificaciones);
+  const [avisosActivos, setAvisosActivos] = useState(false);
+  /** Ids ya avisados (socket o polling) para no sonar dos veces por el mismo pedido. */
+  const avisadosRef = useRef<Set<string>>(new Set());
+  const primeraCargaRef = useRef(true);
+
+  const avisar = useCallback((id: string, origen: string, tarifa: number) => {
+    if (avisadosRef.current.has(id)) return;
+    avisadosRef.current.add(id);
+    avisarViajeNuevo(origen, tarifa);
+  }, []);
 
   const load = useCallback(async () => {
     setError(null);
@@ -40,6 +61,14 @@ export function CadeteViajesPage() {
           ? cadetePortalApi.misViajes(session.usuario.id)
           : Promise.resolve([] as ViajePortal[]),
       ]);
+      if (primeraCargaRef.current) {
+        disp.forEach((v) => avisadosRef.current.add(v.id));
+        primeraCargaRef.current = false;
+      } else {
+        disp.forEach((v) =>
+          avisar(v.id, v.origen_direccion, v.tarifa_final ?? v.tarifa_estimada ?? 0),
+        );
+      }
       setDisponibles(disp);
       setMios(Array.isArray(hist) ? hist : []);
     } catch (e) {
@@ -47,13 +76,34 @@ export function CadeteViajesPage() {
     } finally {
       setLoading(false);
     }
-  }, [session?.usuario.id]);
+  }, [session?.usuario.id, avisar]);
+
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   useEffect(() => {
     void load();
     const id = window.setInterval(() => void load(), 12_000);
     return () => window.clearInterval(id);
   }, [load]);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    const socket = connectSocket(token);
+    socket.on('viaje:nuevo', (ev: ViajeNuevoEvent) => {
+      avisar(ev.viaje_id, ev.origen_direccion, ev.tarifa);
+      void loadRef.current();
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, [session?.usuario.id, avisar]);
+
+  async function activarAvisos() {
+    setPermiso(await pedirPermiso());
+    setAvisosActivos(true);
+  }
 
   const activo = mios.find((v) => ACTIVOS.has(v.estado));
 
@@ -105,12 +155,27 @@ export function CadeteViajesPage() {
         title="Viajes"
         subtitle="Disponibles y viaje activo"
         actions={
-          <button type="button" className="btn btn-ghost" onClick={() => void load()}>
-            Actualizar
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {!avisosActivos ? (
+              <button type="button" className="btn btn-primary" onClick={() => void activarAvisos()}>
+                Activar avisos
+              </button>
+            ) : null}
+            <button type="button" className="btn btn-ghost" onClick={() => void load()}>
+              Actualizar
+            </button>
+          </div>
         }
       />
       {error ? <ErrorBox message={error} /> : null}
+      {avisosActivos ? (
+        <p className="muted" style={{ margin: '0 0 12px' }}>
+          Avisos activos: suena y vibra cuando entra un pedido cerca. Dejá esta pantalla abierta.
+          {permiso === 'denied'
+            ? ' Las notificaciones están bloqueadas en el navegador: habilitalas en los ajustes del sitio para verlas en segundo plano.'
+            : ''}
+        </p>
+      ) : null}
 
       {activo ? (
         <div className="panel panel-pad" style={{ marginBottom: '1rem' }}>
@@ -118,7 +183,7 @@ export function CadeteViajesPage() {
           <p style={{ fontWeight: 600 }}>{activo.origen_direccion}</p>
           <p className="muted">{activo.destino_direccion}</p>
           <p>
-            <Badge tone="warn">{activo.estado}</Badge> ·{' '}
+            <Badge tone="warn">{ESTADO_LABEL[activo.estado] ?? activo.estado}</Badge> ·{' '}
             <Money value={activo.tarifa_final ?? activo.tarifa_estimada ?? 0} />
           </p>
           {activo.destinatario_nombre ? (
@@ -152,59 +217,59 @@ export function CadeteViajesPage() {
         </div>
       ) : null}
 
-      <div className="panel panel-pad">
-        <h3 style={{ marginTop: 0 }}>Disponibles</h3>
-        {disponibles.length === 0 ? (
-          <p className="muted">No hay viajes cerca tuyo. Ponete online desde Estado y activá la ubicación: solo ves
-            pedidos dentro de tu zona.</p>
-        ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Ruta</th>
-                  <th>Tarifa</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {disponibles.map((v) => (
-                  <tr key={v.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{v.origen_direccion}</div>
-                      <div className="muted">{v.destino_direccion}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {v.metodo_pago === 'efectivo' ? 'Cobrar en efectivo' : 'Pagado por la app'}
-                      </div>
-                    </td>
-                    <td>
-                      <Money value={v.tarifa_final ?? v.tarifa_estimada ?? 0} />
-                    </td>
-                    <td style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={busy === v.id}
-                        onClick={() => void aceptar(v.id)}
-                      >
-                        Aceptar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        disabled={busy === v.id}
-                        onClick={() => void rechazar(v.id)}
-                      >
-                        Rechazar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <h3 style={{ margin: '0 0 8px' }}>Disponibles</h3>
+      {disponibles.length === 0 ? (
+        <div className="panel panel-pad">
+          <p className="muted" style={{ margin: 0 }}>
+            No hay viajes cerca tuyo. Ponete online desde Estado y activá la ubicación: solo ves
+            pedidos dentro de tu zona.
+          </p>
+        </div>
+      ) : (
+        <div className="oferta-lista">
+          {disponibles.map((v) => (
+            <div key={v.id} className="panel panel-pad oferta-card">
+              <div className="oferta-top">
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{v.origen_direccion}</div>
+                  <div className="muted">→ {v.destino_direccion}</div>
+                </div>
+                <div className="oferta-tarifa">
+                  <Money value={v.tarifa_final ?? v.tarifa_estimada ?? 0} />
+                </div>
+              </div>
+              <div className="oferta-meta">
+                {v.distancia_al_origen_km != null ? (
+                  <span>A {v.distancia_al_origen_km.toFixed(1)} km de vos</span>
+                ) : null}
+                {v.metodo_pago === 'efectivo' ? (
+                  <Badge tone="warn">Cobrar en efectivo</Badge>
+                ) : (
+                  <Badge tone="ok">Pagado por la app</Badge>
+                )}
+              </div>
+              <div className="oferta-acciones">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy === v.id}
+                  onClick={() => void aceptar(v.id)}
+                >
+                  Aceptar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={busy === v.id}
+                  onClick={() => void rechazar(v.id)}
+                >
+                  Rechazar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

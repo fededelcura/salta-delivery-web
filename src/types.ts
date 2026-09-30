@@ -451,6 +451,8 @@ export interface ViajePortal {
   destinatario_telefono?: string | null;
   pago_token?: string | null;
   umbral_aplicado?: number | null;
+  distancia_al_origen_km?: number;
+  radio_oferta_km?: number;
 }
 
 export interface ClientePortalPerfil {

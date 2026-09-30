@@ -17,12 +17,23 @@ export function getSocketUrl(): string {
   return window.location.origin;
 }
 
-export function connectAdminSocket(token: string): Socket {
+export function connectSocket(token: string): Socket {
   return io(getSocketUrl(), {
     auth: { token },
     transports: ['websocket', 'polling'],
   });
 }
+
+export const connectAdminSocket = connectSocket;
+
+export type ViajeNuevoEvent = {
+  viaje_id: string;
+  origen_direccion: string;
+  tarifa: number;
+  distancia_km: number;
+  radio_km: number;
+  ts?: string;
+};
 
 export type CadeteUbicacionEvent = {
   cadete_id: string;
