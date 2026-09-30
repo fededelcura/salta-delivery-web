@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { cadetePortalApi, getToken } from '../../lib/api';
 import { connectSocket, type ViajeNuevoEvent } from '../../lib/socket';
-import { avisarViajeNuevo, permisoNotificaciones, pedirPermiso } from '../../lib/avisos';
+import {
+  activarPush,
+  avisarViajeNuevo,
+  pedirPermiso,
+  permisoNotificaciones,
+  type EstadoPush,
+} from '../../lib/avisos';
 import type { ViajePortal } from '../../types';
 import { Badge, ErrorBox, Loading, Money, PageHeader } from '../../components/ui';
 
@@ -32,6 +38,18 @@ const ESTADO_LABEL: Record<string, string> = {
 
 const ACTIVOS = new Set(['asignado', 'cadete_en_camino', 'cadete_llego', 'en_curso']);
 
+const PUSH_TEXTO: Record<EstadoPush, string> = {
+  activo: 'Te avisamos aunque cierres la app.',
+  'ios-sin-instalar':
+    'En iPhone, para recibir avisos con la app cerrada, instalala: Compartir → "Agregar a inicio" (iOS 16.4 o superior). Mientras tanto, dejá esta pantalla abierta.',
+  'no-soportado':
+    'Este navegador no recibe avisos con la app cerrada: dejá esta pantalla abierta.',
+  bloqueado:
+    'Las notificaciones están bloqueadas: habilitalas en los ajustes del sitio para recibir avisos con la app cerrada.',
+  'sin-servidor': 'Los avisos con la app cerrada no están disponibles por ahora: dejá esta pantalla abierta.',
+  inactivo: 'Dejá esta pantalla abierta para escuchar los avisos.',
+};
+
 export function CadeteViajesPage() {
   const { session } = useAuth();
   const [disponibles, setDisponibles] = useState<ViajePortal[]>([]);
@@ -39,8 +57,8 @@ export function CadeteViajesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [permiso, setPermiso] = useState(permisoNotificaciones);
   const [avisosActivos, setAvisosActivos] = useState(false);
+  const [estadoPush, setEstadoPush] = useState<EstadoPush>('inactivo');
   /** Ids ya avisados (socket o polling) para no sonar dos veces por el mismo pedido. */
   const avisadosRef = useRef<Set<string>>(new Set());
   const primeraCargaRef = useRef(true);
@@ -48,8 +66,20 @@ export function CadeteViajesPage() {
   const avisar = useCallback((id: string, origen: string, tarifa: number) => {
     if (avisadosRef.current.has(id)) return;
     avisadosRef.current.add(id);
-    avisarViajeNuevo(origen, tarifa);
+    avisarViajeNuevo(origen, tarifa, id);
   }, []);
+
+  const suscribirPush = useCallback(async () => {
+    try {
+      setEstadoPush(await activarPush());
+    } catch {
+      setEstadoPush('sin-servidor');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (permisoNotificaciones() === 'granted') void suscribirPush();
+  }, [session?.usuario.id, suscribirPush]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -101,8 +131,9 @@ export function CadeteViajesPage() {
   }, [session?.usuario.id, avisar]);
 
   async function activarAvisos() {
-    setPermiso(await pedirPermiso());
+    await pedirPermiso();
     setAvisosActivos(true);
+    await suscribirPush();
   }
 
   const activo = mios.find((v) => ACTIVOS.has(v.estado));
@@ -156,7 +187,7 @@ export function CadeteViajesPage() {
         subtitle="Disponibles y viaje activo"
         actions={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {!avisosActivos ? (
+            {!avisosActivos && estadoPush !== 'activo' ? (
               <button type="button" className="btn btn-primary" onClick={() => void activarAvisos()}>
                 Activar avisos
               </button>
@@ -168,12 +199,9 @@ export function CadeteViajesPage() {
         }
       />
       {error ? <ErrorBox message={error} /> : null}
-      {avisosActivos ? (
+      {avisosActivos || estadoPush === 'activo' ? (
         <p className="muted" style={{ margin: '0 0 12px' }}>
-          Avisos activos: suena y vibra cuando entra un pedido cerca. Dejá esta pantalla abierta.
-          {permiso === 'denied'
-            ? ' Las notificaciones están bloqueadas en el navegador: habilitalas en los ajustes del sitio para verlas en segundo plano.'
-            : ''}
+          Avisos activos: suena y vibra cuando entra un pedido cerca. {PUSH_TEXTO[estadoPush]}
         </p>
       ) : null}
 

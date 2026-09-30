@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { authApi, getToken, setToken } from '../lib/api';
+import { desactivarPush } from '../lib/avisos';
 import type { AuthSession } from '../types';
 
 interface AuthState {
@@ -96,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    void desactivarPush(getToken());
     setToken(null);
     localStorage.removeItem(STORAGE_KEY);
     setSession(null);

@@ -638,3 +638,16 @@ export const cadetePortalApi = {
       `/viajes?cadete_id=${encodeURIComponent(cadeteId)}&pageSize=50`,
     ),
 };
+
+export const pushApi = {
+  clavePublica: () => api<{ clave: string }>('/push/clave-publica'),
+  suscribir: (sub: PushSubscriptionJSON) =>
+    api<{ ok: true }>('/push/suscribir', { method: 'POST', body: JSON.stringify(sub) }),
+  /** `token` explícito: al cerrar sesión el token ya se borró de localStorage. */
+  desuscribir: (endpoint: string, token?: string | null) =>
+    api<{ ok: true }>('/push/suscribir', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    }),
+};
