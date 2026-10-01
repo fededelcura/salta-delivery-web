@@ -450,6 +450,7 @@ export interface ViajePortal {
   destinatario_nombre?: string | null;
   destinatario_telefono?: string | null;
   pago_token?: string | null;
+  motivo_cancelacion?: string | null;
   umbral_aplicado?: number | null;
   distancia_al_origen_km?: number;
   radio_oferta_km?: number;

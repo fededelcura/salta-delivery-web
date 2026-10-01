@@ -13,6 +13,8 @@ const ACTIVOS = new Set([
   'en_curso',
 ]);
 
+const VENCIDOS_VISIBLES_MS = 12 * 60 * 60 * 1000;
+
 function toneEstado(e: string) {
   if (e === 'finalizado') return 'ok' as const;
   if (e === 'cancelado') return 'danger' as const;
@@ -35,10 +37,23 @@ export function ClienteInicioPage() {
     load();
   }, [load]);
 
+  const hayActivos = viajes?.some((v) => ACTIVOS.has(v.estado)) ?? false;
+  useEffect(() => {
+    if (!hayActivos) return;
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, [hayActivos, load]);
+
   if (error && !viajes) return <ErrorBox message={error} />;
   if (!viajes) return <Loading />;
 
   const activos = viajes.filter((v) => ACTIVOS.has(v.estado));
+  const vencidos = viajes.filter(
+    (v) =>
+      v.estado === 'cancelado' &&
+      v.motivo_cancelacion?.startsWith('Sin cadete disponible') &&
+      Date.now() - new Date(v.fecha_solicitud).getTime() < VENCIDOS_VISIBLES_MS,
+  );
 
   return (
     <div className="page-enter">
@@ -52,6 +67,18 @@ export function ClienteInicioPage() {
         }
       />
       {error ? <ErrorBox message={error} /> : null}
+
+      {vencidos.map((v) => (
+        <div key={v.id} className="panel panel-pad avisos-cartel" style={{ marginBottom: '1rem' }}>
+          <strong>Tu pedido se canceló: no encontramos cadete en 30 minutos.</strong>
+          <div className="muted" style={{ marginTop: 4 }}>
+            {v.origen_direccion} → {v.destino_direccion}
+          </div>
+          <Link className="btn btn-primary" to="/app/pedir" style={{ marginTop: 8 }}>
+            Volver a pedir
+          </Link>
+        </div>
+      ))}
 
       <div className="panel panel-pad" style={{ marginBottom: '1rem' }}>
         <h3 style={{ marginTop: 0 }}>Viajes activos</h3>
