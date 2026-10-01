@@ -2,12 +2,13 @@ import { FormEvent, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiClientError, authApi } from '../lib/api';
-import { homeForRole } from '../lib/roles';
+import { destinoTrasLogin, volverParam } from '../lib/roles';
 
 export function VerifyEmailPage() {
   const { session, completeSession } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const volver = volverParam(params);
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [codigo, setCodigo] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +16,7 @@ export function VerifyEmailPage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
 
-  if (session) return <Navigate to={homeForRole(session.usuario.rol)} replace />;
+  if (session) return <Navigate to={destinoTrasLogin(session.usuario.rol, volver)} replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -25,7 +26,7 @@ export function VerifyEmailPage() {
     try {
       const data = await authApi.verifyEmail(email.trim(), codigo.trim());
       completeSession(data);
-      navigate(homeForRole(data.usuario.rol), { replace: true });
+      navigate(destinoTrasLogin(data.usuario.rol, volver), { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo verificar');
     } finally {
@@ -101,8 +102,9 @@ export function VerifyEmailPage() {
 }
 
 export function RegisterPage() {
-  const { session } = useAuth();
+  const { session, completeSession } = useAuth();
   const navigate = useNavigate();
+  const volver = volverParam(useSearchParams()[0]);
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -112,7 +114,7 @@ export function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  if (session) return <Navigate to={homeForRole(session.usuario.rol)} replace />;
+  if (session) return <Navigate to={destinoTrasLogin(session.usuario.rol, volver)} replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -127,7 +129,14 @@ export function RegisterPage() {
         rol,
         dni: rol === 'cliente' ? dni.trim() : undefined,
       });
-      navigate(`/verificar-email?email=${encodeURIComponent(result.email)}`, { replace: true });
+      if (result.session) {
+        completeSession(result.session);
+        navigate(destinoTrasLogin(result.session.usuario.rol, volver), { replace: true });
+        return;
+      }
+      const qs = new URLSearchParams({ email: result.email });
+      if (volver) qs.set('volver', volver);
+      navigate(`/verificar-email?${qs}`, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar');
     } finally {
@@ -138,11 +147,14 @@ export function RegisterPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={onSubmit}>
-        <Link to="/login" className="login-back">
+        <Link
+          to={volver ? `/login?volver=${encodeURIComponent(volver)}` : '/login'}
+          className="login-back"
+        >
           ← Ya tengo cuenta
         </Link>
         <h1>Crear cuenta</h1>
-        <p className="sub">Te enviaremos un código a tu email para activarla</p>
+        <p className="sub">Con tu cuenta pedís envíos y los seguís desde cualquier celular</p>
         {error ? <div className="error-banner">{error}</div> : null}
         <div className="stack">
           <div className="field">

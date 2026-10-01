@@ -20,6 +20,9 @@ const ESTADOS = [
 
 const ACTIVOS = new Set(['buscando_cadete', 'asignado', 'en_curso', 'solicitado']);
 
+/** Igual que VIAJE_VISIBLE_MS de la API: a partir de acá los cadetes ya no lo ven. */
+const VENCIDO_MIN = 30;
+
 const TIPO_LABEL: Record<string, string> = {
   delivery: 'Delivery',
   mensajeria: 'Mensajería',
@@ -338,6 +341,9 @@ export function ViajesPage() {
                             ? `⚠ ${Math.floor(minutosBuscando(v))} min sin cadete`
                             : `Buscando · ${Math.floor(minutosBuscando(v))} min`}
                         </div>
+                      ) : null}
+                      {buscando && minutosBuscando(v) >= VENCIDO_MIN ? (
+                        <Badge tone="danger">Vencido (oculto a cadetes)</Badge>
                       ) : null}
                     </td>
                     <td>{TIPO_LABEL[v.tipo_servicio] ?? v.tipo_servicio}</td>

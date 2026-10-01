@@ -1168,6 +1168,29 @@ table.data tr.row-selected td {
   }
 }
 
+/* Cadete — avisos push */
+.avisos-cartel {
+  margin-bottom: 1rem;
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.avisos-btn {
+  width: 100%;
+  font-size: 1.05rem;
+  padding: 0.8rem 1rem;
+}
+
+.avisos-ok {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 12px;
+  color: var(--ok);
+  font-weight: 600;
+}
+
 /* Cadete — ofertas disponibles como tarjetas */
 .oferta-lista {
   display: grid;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cadetePortalApi } from '../../lib/api';
+import { activarPush, pedirPermiso } from '../../lib/avisos';
 import type { CadetePortal } from '../../types';
 import { Badge, ErrorBox, PageHeader } from '../../components/ui';
 
@@ -55,6 +56,10 @@ export function CadeteEstadoPage() {
   async function toggle(online: boolean) {
     setBusy(true);
     setError(null);
+    if (online) {
+      // El permiso de notificaciones solo se puede pedir durante el toque del usuario.
+      void pedirPermiso().then(() => activarPush().catch(() => undefined));
+    }
     try {
       const updated = await cadetePortalApi.setEstado(online ? 'online' : 'offline');
       setCadete(updated);

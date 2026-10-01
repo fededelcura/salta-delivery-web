@@ -17,6 +17,32 @@ import {
 
 type Spot = { direccion: string; lat: number; lng: number };
 
+/** Pedido armado sin sesión: sobrevive al paso por login/registro (misma pestaña). */
+const BORRADOR_KEY = 'sd_pedido_borrador';
+type Borrador = {
+  origen: Spot | null;
+  destino: Spot | null;
+  origenNumero: string;
+  origenPiso: string;
+  origenDpto: string;
+  destinoNumero: string;
+  destinoPiso: string;
+  destinoDpto: string;
+  tipo: string;
+  pago: string;
+};
+
+function leerBorrador(): Borrador | null {
+  const raw = sessionStorage.getItem(BORRADOR_KEY);
+  if (!raw) return null;
+  sessionStorage.removeItem(BORRADOR_KEY);
+  try {
+    return JSON.parse(raw) as Borrador;
+  } catch {
+    return null;
+  }
+}
+
 const FAV_ALIASES = ['Casa', 'Trabajo'] as const;
 const LOGIN_FAV_MSG = 'Iniciá sesión para guardar Casa/Trabajo en tu cuenta';
 
@@ -139,7 +165,7 @@ function PlaceSuggestions({
 }
 
 export function PedirPage() {
-  const { session, completeSession, logout } = useAuth();
+  const { session, logout } = useAuth();
   const navigate = useNavigate();
   /** Solo con sd_token real: session.tokens sin getToken() disparaba "Token Bearer requerido". */
   const hasAuth = session?.usuario.rol === 'cliente' && Boolean(getToken());
@@ -170,13 +196,11 @@ export function PedirPage() {
     tiempo_estimado_min: number;
     total: number;
   } | null>(null);
-  const [nombre, setNombre] = useState(session?.usuario.nombre ?? '');
-  const [telefono, setTelefono] = useState(session?.usuario.telefono ?? '');
   const [gpsBusy, setGpsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gpsHint, setGpsHint] = useState<string | null>(
-    'Elegí origen y destino. Si no tenés cuenta, completá nombre y teléfono abajo para confirmar.',
+    'Elegí origen y destino. Para confirmar necesitás ingresar con tu cuenta.',
   );
   const [esNegocio, setEsNegocio] = useState(false);
   const [umbral, setUmbral] = useState<number | null>(null);
@@ -193,6 +217,27 @@ export function PedirPage() {
 
   useEffect(() => {
     pingHealth();
+    const b = leerBorrador();
+    if (!b) return;
+    if (b.origen) {
+      setOrigen(b.origen);
+      setOrigenQuery(b.origen.direccion);
+      setOrigenLocked(true);
+    }
+    if (b.destino) {
+      setDestino(b.destino);
+      setDestinoQuery(b.destino.direccion);
+      setDestinoLocked(true);
+    }
+    setOrigenNumero(b.origenNumero);
+    setOrigenPiso(b.origenPiso);
+    setOrigenDpto(b.origenDpto);
+    setDestinoNumero(b.destinoNumero);
+    setDestinoPiso(b.destinoPiso);
+    setDestinoDpto(b.destinoDpto);
+    setTipo(b.tipo);
+    setPago(b.pago);
+    setGpsHint('Tu pedido quedó armado: revisalo y tocá Confirmar pedido.');
   }, []);
 
   useEffect(() => {
@@ -224,8 +269,6 @@ export function PedirPage() {
       .perfil()
       .then((p) => {
         setFavoritos(p.direcciones_favoritas ?? []);
-        if (!nombre && p.nombre) setNombre(p.nombre);
-        if (!telefono && p.telefono) setTelefono(p.telefono);
         if (p.tipo_cuenta === 'restaurante' || p.tipo_cuenta === 'comercio') {
           setEsNegocio(true);
           void clientePortalApi
@@ -472,31 +515,22 @@ export function PedirPage() {
     }
   }
 
-  async function confirmarComoInvitado(payloadBase: {
-    tipo_servicio: string;
-    origen_direccion: string;
-    origen: { lat: number; lng: number };
-    destino_direccion: string;
-    destino: { lat: number; lng: number };
-    metodo_pago: string;
-  }) {
-    const telDigits = telefono.replace(/\D/g, '');
-    if (!nombre.trim() || telDigits.length < 8) {
-      setError('Completá tu nombre y teléfono (mín. 8 dígitos) para confirmar el pedido.');
-      return false;
-    }
-    const result = await clientePortalApi.solicitarInvitado({
-      ...payloadBase,
-      nombre: nombre.trim(),
-      telefono: telDigits,
-    });
-    if (!result?.session?.tokens?.accessToken) {
-      setError('Pedido creado pero no recibimos sesión. Recargá e iniciá con tu teléfono.');
-      return false;
-    }
-    completeSession(result.session);
-    navigate('/app', { replace: true });
-    return true;
+  /** Guarda el pedido armado y manda a ingresar; al volver a /pedir se restaura. */
+  function irAIngresar(destinoRuta: '/login' | '/registro' = '/login') {
+    const borrador: Borrador = {
+      origen,
+      destino,
+      origenNumero,
+      origenPiso,
+      origenDpto,
+      destinoNumero,
+      destinoPiso,
+      destinoDpto,
+      tipo,
+      pago,
+    };
+    sessionStorage.setItem(BORRADOR_KEY, JSON.stringify(borrador));
+    navigate(`${destinoRuta}?volver=/pedir`);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -525,11 +559,8 @@ export function PedirPage() {
     }
 
     if (!hasAuth) {
-      const telDigits = telefono.replace(/\D/g, '');
-      if (!nombre.trim() || telDigits.length < 8) {
-        setError('Completá tu nombre y teléfono (mín. 8 dígitos) abajo para confirmar.');
-        return;
-      }
+      irAIngresar();
+      return;
     }
 
     const modoNegocio = hasAuth && esNegocio;
@@ -557,37 +588,24 @@ export function PedirPage() {
     setBusy(true);
     setError(null);
     try {
-      if (hasAuth && getToken()) {
-        try {
-          if (modoNegocio) {
-            const viaje = await clientePortalApi.solicitar({
-              ...payloadBase,
-              importe_pedido: importeNum,
-              destinatario_nombre: destNombre.trim(),
-              destinatario_telefono: destTelefono.replace(/\D/g, ''),
-            });
-            setCopiado(false);
-            setPedidoNegocio(viaje);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            return;
-          }
-          await clientePortalApi.solicitar(payloadBase);
-          navigate('/app', { replace: true });
-          return;
-        } catch (err) {
-          if (isBearerOrUnauthorized(err)) {
-            logout();
-            await confirmarComoInvitado(payloadBase);
-            return;
-          }
-          throw err;
-        }
+      if (modoNegocio) {
+        const viaje = await clientePortalApi.solicitar({
+          ...payloadBase,
+          importe_pedido: importeNum,
+          destinatario_nombre: destNombre.trim(),
+          destinatario_telefono: destTelefono.replace(/\D/g, ''),
+        });
+        setCopiado(false);
+        setPedidoNegocio(viaje);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
       }
-      await confirmarComoInvitado(payloadBase);
+      await clientePortalApi.solicitar(payloadBase);
+      navigate('/app', { replace: true });
     } catch (err) {
       if (isBearerOrUnauthorized(err)) {
         logout();
-        setError('Completá tu nombre y teléfono (mín. 8 dígitos) para confirmar el pedido.');
+        irAIngresar();
       } else {
         setError(err instanceof Error ? err.message : 'No se pudo solicitar');
       }
@@ -1024,31 +1042,25 @@ export function PedirPage() {
           ) : null}
 
           {!hasAuth ? (
-            <>
-              <div className="field">
-                <label>Tu nombre</label>
-                <input
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Cómo te llamás"
-                  autoComplete="name"
-                />
-              </div>
-              <div className="field">
-                <label>Teléfono</label>
-                <input
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                  placeholder="Ej. 3875123456"
-                  inputMode="tel"
-                  autoComplete="tel"
-                />
-              </div>
-              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                No hace falta login: con nombre y teléfono confirmás el pedido y seguís el viaje.{' '}
-                <Link to="/login">Ya tengo cuenta</Link>
+            <div className="panel panel-pad" style={{ display: 'grid', gap: 8 }}>
+              <strong>Para pedir necesitás una cuenta</strong>
+              <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+                Así seguís tu envío desde cualquier celular. Tu pedido queda armado: después de
+                ingresar solo tocás Confirmar.
               </p>
-            </>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-ghost" onClick={() => irAIngresar('/login')}>
+                  Ingresar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => irAIngresar('/registro')}
+                >
+                  Crear cuenta
+                </button>
+              </div>
+            </div>
           ) : null}
 
           {(!origen || !destino) && !error ? (
@@ -1077,7 +1089,9 @@ export function PedirPage() {
               ? 'Solicitando…'
               : !origen || !destino
                 ? 'Confirmar pedido (faltan direcciones)'
-                : 'Confirmar pedido'}
+                : hasAuth
+                  ? 'Confirmar pedido'
+                  : 'Ingresar para confirmar'}
           </button>
         </div>
       </form>

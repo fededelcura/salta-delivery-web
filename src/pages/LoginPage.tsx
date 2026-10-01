@@ -1,19 +1,20 @@
 import { FormEvent, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiClientError } from '../lib/api';
-import { homeForRole } from '../lib/roles';
+import { destinoTrasLogin, volverParam } from '../lib/roles';
 
 export function LoginPage() {
   const { session, login } = useAuth();
   const navigate = useNavigate();
+  const volver = volverParam(useSearchParams()[0]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  if (session) return <Navigate to={homeForRole(session.usuario.rol)} replace />;
+  if (session) return <Navigate to={destinoTrasLogin(session.usuario.rol, volver)} replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -96,7 +97,10 @@ export function LoginPage() {
             {loading ? 'Ingresando…' : 'Ingresar'}
           </button>
           <p className="sub" style={{ marginTop: '0.5rem' }}>
-            ¿Nuevo? <Link to="/registro">Crear cuenta</Link>
+            ¿Nuevo?{' '}
+            <Link to={volver ? `/registro?volver=${encodeURIComponent(volver)}` : '/registro'}>
+              Crear cuenta
+            </Link>
             {' · '}
             <Link to="/verificar-email">Verificar email</Link>
           </p>

@@ -161,7 +161,11 @@ export const authApi = {
     rol: 'cliente' | 'cadete';
     dni?: string;
   }) =>
-    api<{ email: string; requiresEmailVerification: true }>('/auth/register', {
+    api<{
+      email: string;
+      requiresEmailVerification: boolean;
+      session?: import('../types').AuthSession;
+    }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
@@ -558,26 +562,6 @@ export const clientePortalApi = {
       body: JSON.stringify(payload),
       timeoutMs: TIMEOUT_SOLICITAR_MS,
     }),
-  solicitarInvitado: (payload: {
-    telefono: string;
-    nombre: string;
-    email?: string;
-    tipo_servicio: string;
-    origen_direccion: string;
-    origen: { lat: number; lng: number };
-    destino_direccion: string;
-    destino: { lat: number; lng: number };
-    metodo_pago: string;
-    tiempo_preparacion_min?: number;
-  }) =>
-    api<{
-      viaje: import('../types').ViajePortal;
-      session: import('../types').AuthSession;
-    }>('/clientes/solicitar-invitado', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      timeoutMs: TIMEOUT_SOLICITAR_MS,
-    }),
   cancelar: (id: string, motivo?: string) =>
     api<import('../types').ViajePortal>(`/clientes/cancelar-viaje/${id}`, {
       method: 'POST',
@@ -643,6 +627,8 @@ export const pushApi = {
   clavePublica: () => api<{ clave: string }>('/push/clave-publica'),
   suscribir: (sub: PushSubscriptionJSON) =>
     api<{ ok: true }>('/push/suscribir', { method: 'POST', body: JSON.stringify(sub) }),
+  probar: () =>
+    api<{ enviados: number; borrados: number }>('/push/probar', { method: 'POST', body: '{}' }),
   /** `token` explícito: al cerrar sesión el token ya se borró de localStorage. */
   desuscribir: (endpoint: string, token?: string | null) =>
     api<{ ok: true }>('/push/suscribir', {

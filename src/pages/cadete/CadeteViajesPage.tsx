@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
-import { cadetePortalApi, getToken } from '../../lib/api';
+import { cadetePortalApi, getToken, pushApi } from '../../lib/api';
 import { connectSocket, type ViajeNuevoEvent } from '../../lib/socket';
 import {
   activarPush,
@@ -136,6 +136,21 @@ export function CadeteViajesPage() {
     await suscribirPush();
   }
 
+  const [prueba, setPrueba] = useState<string | null>(null);
+  async function probarAviso() {
+    setPrueba('Enviando…');
+    try {
+      const r = await pushApi.probar();
+      setPrueba(
+        r.enviados > 0
+          ? 'Listo: te tiene que llegar una notificación en unos segundos.'
+          : 'No hay avisos activos en este teléfono: tocá Activar avisos otra vez.',
+      );
+    } catch (e) {
+      setPrueba(e instanceof Error ? e.message : 'No se pudo enviar la prueba');
+    }
+  }
+
   const activo = mios.find((v) => ACTIVOS.has(v.estado));
 
   async function aceptar(id: string) {
@@ -186,24 +201,37 @@ export function CadeteViajesPage() {
         title="Viajes"
         subtitle="Disponibles y viaje activo"
         actions={
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {!avisosActivos && estadoPush !== 'activo' ? (
-              <button type="button" className="btn btn-primary" onClick={() => void activarAvisos()}>
-                Activar avisos
-              </button>
-            ) : null}
-            <button type="button" className="btn btn-ghost" onClick={() => void load()}>
-              Actualizar
-            </button>
-          </div>
+          <button type="button" className="btn btn-ghost" onClick={() => void load()}>
+            Actualizar
+          </button>
         }
       />
       {error ? <ErrorBox message={error} /> : null}
-      {avisosActivos || estadoPush === 'activo' ? (
-        <p className="muted" style={{ margin: '0 0 12px' }}>
-          Avisos activos: suena y vibra cuando entra un pedido cerca. {PUSH_TEXTO[estadoPush]}
-        </p>
-      ) : null}
+      {estadoPush === 'activo' ? (
+        <div className="avisos-ok">
+          <span>Avisos activos: te avisamos aunque cierres la app.</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void probarAviso()}>
+            Probar aviso
+          </button>
+          {prueba ? <span className="muted">{prueba}</span> : null}
+        </div>
+      ) : (
+        <div className="panel panel-pad avisos-cartel">
+          <strong>Activá los avisos de pedidos</strong>
+          <p className="muted" style={{ margin: '4px 0 12px' }}>
+            {avisosActivos
+              ? PUSH_TEXTO[estadoPush]
+              : 'Para enterarte de los pedidos cerca tuyo aunque tengas la app cerrada.'}
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary avisos-btn"
+            onClick={() => void activarAvisos()}
+          >
+            Activar avisos
+          </button>
+        </div>
+      )}
 
       {activo ? (
         <div className="panel panel-pad" style={{ marginBottom: '1rem' }}>
